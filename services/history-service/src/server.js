@@ -1,0 +1,95 @@
+// Expone el historial persistente de operaciones.
+import 'dotenv/config';
+import cors from 'cors';
+import express from 'express';
+import helmet from 'helmet';
+import { z } from 'zod';
+import {
+  countOperations,
+  deleteOperation,
+  insertOperation,
+  listOperations,
+  operationStats
+} from './database.js';
+
+const app = express();
+const port = Number(process.env.PORT || 4003);
+const serviceKey = process.env.SERVICE_KEY || 'mia-internal-local-service-key';
+
+const operationSchema = z.object({
+  id: z.string().uuid(),
+  userId: z.string().min(1).max(120),
+  type: z.enum(['summarize', 'sentiment', 'keywords', 'classify']),
+  inputPreview: z.string().max(240),
+  inputLength: z.number().int().nonnegative(),
+  result: z.unknown(),
+  processingMs: z.number().nonnegative(),
+  createdAt: z.string().datetime()
+});
+
+const requireUser = (request, response, next) => {
+  const userId = request.headers['x-user-id'];
+
+  if (!userId || typeof userId !== 'string') {
+    return response.status(401).json({ message: 'Identidad de usuario requerida.' });
+  }
+
+  request.userId = userId;
+  return next();
+};
+
+app.use(helmet());
+app.use(cors());
+app.use(express.json({ limit: '128kb' }));
+
+app.get('/health', (request, response) => {
+  response.json({ service: 'history-service', status: 'ok' });
+});
+
+app.post('/internal/operations', (request, response) => {
+  if (request.headers['x-service-key'] !== serviceKey) {
+    return response.status(403).json({ message: 'Acceso interno denegado.' });
+  }
+
+  const validation = operationSchema.safeParse(request.body);
+
+  if (!validation.success) {
+    return response.status(400).json({ message: 'Operacion no valida.' });
+  }
+
+  return response.status(201).json({ operation: insertOperation(validation.data) });
+});
+
+app.get('/operations', requireUser, (request, response) => {
+  const limit = Math.min(Math.max(Number(request.query.limit) || 25, 1), 100);
+  const offset = Math.max(Number(request.query.offset) || 0, 0);
+
+  response.json({
+    items: listOperations(request.userId, limit, offset),
+    total: countOperations(request.userId),
+    limit,
+    offset
+  });
+});
+
+app.get('/stats', requireUser, (request, response) => {
+  response.json({ items: operationStats(request.userId), total: countOperations(request.userId) });
+});
+
+app.delete('/operations/:id', requireUser, (request, response) => {
+  const deleted = deleteOperation(request.params.id, request.userId);
+
+  if (!deleted) {
+    return response.status(404).json({ message: 'Registro no encontrado.' });
+  }
+
+  return response.status(204).send();
+});
+
+app.use((error, request, response, next) => {
+  response.status(500).json({ message: 'No fue posible procesar el historial.' });
+});
+
+app.listen(port, () => {
+  console.log(`history-service activo en http://localhost:${port}`);
+});

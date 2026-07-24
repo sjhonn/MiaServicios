@@ -1,0 +1,11 @@
+# Excluye dependencias, secretos y bases locales.
+node_modules/
+.env
+.env.local
+services/*/.env
+services/*/data/*.db
+services/*/data/*.db-shm
+services/*/data/*.db-wal
+frontend/.env.local
+.DS_Store
+npm-debug.log*
