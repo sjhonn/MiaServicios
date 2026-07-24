@@ -5,6 +5,7 @@ import express from 'express';
 import helmet from 'helmet';
 import { z } from 'zod';
 import {
+  clearOperations,
   countOperations,
   deleteOperation,
   insertOperation,
@@ -15,11 +16,11 @@ import {
 const app = express();
 const port = Number(process.env.PORT || 4003);
 const serviceKey = process.env.SERVICE_KEY || 'mia-internal-local-service-key';
-
+const operationTypes = ['summarize', 'sentiment', 'keywords', 'classify', 'statistics', 'normalize'];
 const operationSchema = z.object({
   id: z.string().uuid(),
   userId: z.string().min(1).max(120),
-  type: z.enum(['summarize', 'sentiment', 'keywords', 'classify']),
+  type: z.enum(operationTypes),
   inputPreview: z.string().max(240),
   inputLength: z.number().int().nonnegative(),
   result: z.unknown(),
@@ -61,19 +62,27 @@ app.post('/internal/operations', (request, response) => {
 });
 
 app.get('/operations', requireUser, (request, response) => {
-  const limit = Math.min(Math.max(Number(request.query.limit) || 25, 1), 100);
+  const limit = Math.min(Math.max(Number(request.query.limit) || 25, 1), 500);
   const offset = Math.max(Number(request.query.offset) || 0, 0);
+  const type = operationTypes.includes(request.query.type) ? request.query.type : 'all';
+  const search = String(request.query.search || '').trim().slice(0, 120);
+  const sort = request.query.sort === 'oldest' ? 'oldest' : 'newest';
+  const query = { userId: request.userId, limit, offset, type, search, sort };
 
   response.json({
-    items: listOperations(request.userId, limit, offset),
-    total: countOperations(request.userId),
+    items: listOperations(query),
+    total: countOperations(query),
     limit,
     offset
   });
 });
 
 app.get('/stats', requireUser, (request, response) => {
-  response.json({ items: operationStats(request.userId), total: countOperations(request.userId) });
+  response.json(operationStats(request.userId));
+});
+
+app.delete('/operations', requireUser, (request, response) => {
+  response.json({ deleted: clearOperations(request.userId) });
 });
 
 app.delete('/operations/:id', requireUser, (request, response) => {

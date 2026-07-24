@@ -1,4 +1,4 @@
-// Expone registro, login y validacion JWT.
+// Expone registro, login, perfil y validacion JWT.
 import 'dotenv/config';
 import bcrypt from 'bcryptjs';
 import cors from 'cors';
@@ -6,19 +6,29 @@ import express from 'express';
 import helmet from 'helmet';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
-import { createUser, findUserByEmail, findUserById } from './database.js';
+import {
+  createUser,
+  findUserByEmail,
+  findUserById,
+  findUserWithPassword,
+  updateUserName,
+  updateUserPassword
+} from './database.js';
 
 const app = express();
 const port = Number(process.env.PORT || 4001);
 const jwtSecret = process.env.JWT_SECRET || 'mia-local-development-secret-32-characters-minimum';
-
 const credentialsSchema = z.object({
   email: z.string().trim().email().transform((value) => value.toLowerCase()),
   password: z.string().min(8).max(72)
 });
-
-const registrationSchema = credentialsSchema.extend({
-  name: z.string().trim().min(2).max(80)
+const registrationSchema = credentialsSchema.extend({ name: z.string().trim().min(2).max(80) });
+const profileSchema = z.object({ name: z.string().trim().min(2).max(80) });
+const passwordSchema = z.object({
+  currentPassword: z.string().min(8).max(72),
+  newPassword: z.string().min(8).max(72)
+}).refine((value) => value.currentPassword !== value.newPassword, {
+  message: 'La nueva contrasena debe ser diferente.'
 });
 
 const publicUser = (user) => ({
@@ -26,7 +36,8 @@ const publicUser = (user) => ({
   name: user.name,
   email: user.email,
   role: user.role,
-  createdAt: user.createdAt
+  createdAt: user.createdAt,
+  updatedAt: user.updatedAt || user.createdAt
 });
 
 const issueToken = (user) => jwt.sign(
@@ -35,14 +46,10 @@ const issueToken = (user) => jwt.sign(
   { expiresIn: '8h', issuer: 'miaservicios-auth' }
 );
 
-const readBearerToken = (request) => {
-  const authorization = request.headers.authorization || '';
-  return authorization.startsWith('Bearer ') ? authorization.slice(7) : '';
-};
-
 const authenticate = (request, response, next) => {
   try {
-    const token = readBearerToken(request);
+    const authorization = request.headers.authorization || '';
+    const token = authorization.startsWith('Bearer ') ? authorization.slice(7) : '';
 
     if (!token) {
       return response.status(401).json({ message: 'Token de acceso requerido.' });
@@ -112,6 +119,35 @@ app.get('/me', authenticate, (request, response) => {
   }
 
   return response.json({ user: publicUser(user) });
+});
+
+app.patch('/profile', authenticate, (request, response) => {
+  const validation = profileSchema.safeParse(request.body);
+
+  if (!validation.success) {
+    return response.status(400).json({ message: 'El nombre no es valido.' });
+  }
+
+  const user = updateUserName(request.auth.sub, validation.data.name);
+  return response.json({ user: publicUser(user), token: issueToken(user) });
+});
+
+app.post('/change-password', authenticate, async (request, response) => {
+  const validation = passwordSchema.safeParse(request.body);
+
+  if (!validation.success) {
+    return response.status(400).json({ message: validation.error.issues[0]?.message || 'Datos no validos.' });
+  }
+
+  const user = findUserWithPassword(request.auth.sub);
+  const validPassword = user && await bcrypt.compare(validation.data.currentPassword, user.passwordHash);
+
+  if (!validPassword) {
+    return response.status(401).json({ message: 'La contrasena actual no es correcta.' });
+  }
+
+  updateUserPassword(user.id, await bcrypt.hash(validation.data.newPassword, 12));
+  return response.status(204).send();
 });
 
 app.post('/internal/verify', authenticate, (request, response) => {

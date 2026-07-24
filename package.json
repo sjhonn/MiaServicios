@@ -1,25 +1,18 @@
 {
-  "name": "miaservicios-platform",
-  "version": "1.0.0",
+  "name": "@miaservicios/api-gateway",
+  "version": "2.0",
   "private": true,
-  "workspaces": [
-    "frontend",
-    "services/*"
-  ],
+  "type": "module",
   "scripts": {
-    "dev": "concurrently --kill-others-on-fail --names gateway,auth,ai,history,web \"npm run dev --workspace=@miaservicios/api-gateway\" \"npm run dev --workspace=@miaservicios/auth-service\" \"npm run dev --workspace=@miaservicios/ai-service\" \"npm run dev --workspace=@miaservicios/history-service\" \"npm run dev --workspace=@miaservicios/frontend\"",
-    "dev:backend": "concurrently --kill-others-on-fail --names gateway,auth,ai,history \"npm run dev --workspace=@miaservicios/api-gateway\" \"npm run dev --workspace=@miaservicios/auth-service\" \"npm run dev --workspace=@miaservicios/ai-service\" \"npm run dev --workspace=@miaservicios/history-service\"",
-    "build": "npm run build --workspace=@miaservicios/frontend",
-    "preview": "npm run preview --workspace=@miaservicios/frontend",
-    "start": "concurrently --kill-others-on-fail --names gateway,auth,ai,history \"npm run start --workspace=@miaservicios/api-gateway\" \"npm run start --workspace=@miaservicios/auth-service\" \"npm run start --workspace=@miaservicios/ai-service\" \"npm run start --workspace=@miaservicios/history-service\"",
-    "check": "npm run check --workspaces --if-present",
-    "test": "node tests/nlp-smoke.mjs"
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js",
+    "check": "node --check src/server.js"
   },
-  "devDependencies": {
-    "concurrently": "^9.1.2"
-  },
-  "engines": {
-    "node": ">=22.18.0",
-    "npm": ">=10.0.0"
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.5.0",
+    "express": "^5.1.0",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.1.0"
   }
 }

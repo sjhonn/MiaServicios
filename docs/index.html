@@ -1,19 +1,35 @@
-<!-- Publica una version funcional directa para GitHub Pages. -->
 <!doctype html>
 <html lang="es">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-  <meta name="theme-color" content="#121519">
-  <meta name="description" content="MiaServicios, plataforma de procesamiento de texto basada en microservicios.">
-  <title>MiaServicios</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
-  <link rel="stylesheet" href="./theme.css">
-</head>
-<body>
-  <div id="app"></div>
-  <script src="https://unpkg.com/vue@3.5.13/dist/vue.global.prod.js"></script>
-  <script src="./app.js"></script>
-</body>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, shrink-to-fit=no"
+    />
+    <meta name="theme-color" content="#101317" />
+    <meta
+      name="description"
+      content="MiaServicios permite analizar, organizar y reutilizar contenido desde una experiencia clara y adaptable."
+    />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./icons/icon-192.png" />
+    <title>MiaServicios</title>
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css"
+    />
+    <link rel="stylesheet" href="./theme.css" />
+  </head>
+  <body>
+    <div id="app"></div>
+    <script src="https://unpkg.com/vue@3.5.13/dist/vue.global.prod.js"></script>
+    <script src="./vendor/fontawesome/all.min.js"></script>
+    <script src="./app.js"></script>
+    <script>
+      if ("serviceWorker" in navigator)
+        window.addEventListener("load", () =>
+          navigator.serviceWorker.register("./service-worker.js"),
+        );
+    </script>
+  </body>
 </html>

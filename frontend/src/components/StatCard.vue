@@ -1,4 +1,4 @@
-<!-- Presenta una metrica principal del panel. -->
+<!-- Presenta una metrica principal del dashboard. -->
 <script setup>
 defineProps({
   label: { type: String, required: true },
@@ -14,7 +14,7 @@ defineProps({
     <div>
       <div class="metric-label">{{ label }}</div>
       <div class="metric-value">{{ value }}</div>
-      <div v-if="detail" class="metric-detail">{{ detail }}</div>
+      <div class="metric-detail">{{ detail }}</div>
     </div>
   </article>
 </template>

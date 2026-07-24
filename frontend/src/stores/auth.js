@@ -1,39 +1,57 @@
-// Mantiene la sesion activa de la plataforma.
-import { computed, ref } from 'vue';
+// Administra la sesion y el perfil del usuario.
 import { defineStore } from 'pinia';
 import { platformApi } from '../services/platformApi.js';
 
-export const useAuthStore = defineStore('auth', () => {
-  const session = ref(platformApi.session());
-  const loading = ref(false);
-  const error = ref('');
-
-  const user = computed(() => session.value?.user || null);
-  const authenticated = computed(() => Boolean(session.value?.token));
-
-  const execute = async (action) => {
-    loading.value = true;
-    error.value = '';
-
-    try {
-      session.value = await action();
-      return true;
-    } catch (exception) {
-      error.value = exception.message;
-      return false;
-    } finally {
-      loading.value = false;
+export const useAuthStore = defineStore('auth', {
+  state: () => ({
+    session: platformApi.session(),
+    loading: false,
+    error: ''
+  }),
+  getters: {
+    authenticated: (state) => Boolean(state.session?.token && state.session?.user),
+    user: (state) => state.session?.user || null
+  },
+  actions: {
+    async run(action) {
+      this.loading = true;
+      this.error = '';
+      try {
+        this.session = await action();
+        return true;
+      } catch (error) {
+        this.error = error.message;
+        return false;
+      } finally {
+        this.loading = false;
+      }
+    },
+    login(credentials) {
+      return this.run(() => platformApi.login(credentials));
+    },
+    register(payload) {
+      return this.run(() => platformApi.register(payload));
+    },
+    async refresh() {
+      if (!this.authenticated) return false;
+      try {
+        const response = await platformApi.me();
+        this.session = { ...this.session, user: response.user };
+        return true;
+      } catch {
+        this.logout();
+        return false;
+      }
+    },
+    async updateProfile(payload) {
+      const response = await platformApi.updateProfile(payload);
+      this.session = { ...this.session, token: response.token || this.session.token, user: response.user };
+      return response.user;
+    },
+    logout() {
+      platformApi.logout();
+      this.session = null;
+      this.error = '';
     }
-  };
-
-  const login = (credentials) => execute(() => platformApi.login(credentials));
-  const register = (payload) => execute(() => platformApi.register(payload));
-
-  const logout = () => {
-    platformApi.logout();
-    session.value = null;
-    error.value = '';
-  };
-
-  return { session, user, authenticated, loading, error, login, register, logout };
+  }
 });

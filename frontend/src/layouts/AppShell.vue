@@ -1,20 +1,20 @@
-<!-- Proporciona la navegacion y el marco privado. -->
+<!-- Proporciona navegación y estructura para las vistas privadas. -->
 <script setup>
 import { ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth.js';
-import { platformApi } from '../services/platformApi.js';
 
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
 const sidebarOpen = ref(false);
-
 const links = [
   { name: 'dashboard', label: 'Panel general', icon: 'fa-solid fa-chart-line' },
-  { name: 'text-lab', label: 'Laboratorio IA', icon: 'fa-solid fa-wand-magic-sparkles' },
+  { name: 'text-lab', label: 'Herramientas', icon: 'fa-solid fa-wand-magic-sparkles' },
   { name: 'history', label: 'Historial', icon: 'fa-solid fa-clock-rotate-left' },
-  { name: 'architecture', label: 'Arquitectura', icon: 'fa-solid fa-diagram-project' }
+  { name: 'templates', label: 'Plantillas', icon: 'fa-solid fa-layer-group' },
+  { name: 'settings', label: 'Configuración', icon: 'fa-solid fa-sliders' },
+  { name: 'architecture', label: 'Experiencia', icon: 'fa-solid fa-compass' }
 ];
 
 watch(() => route.fullPath, () => {
@@ -35,18 +35,13 @@ const closeSession = () => {
       <div class="brand-block">
         <div class="brand-symbol"><i class="fa-solid fa-brain"></i></div>
         <div>
-          <div class="brand-title"><strong>Mia</strong>Servicios</div>
-          <div class="brand-subtitle">Plataforma de IA</div>
+          <div class="brand-title">MiaServicios</div>
+          <div class="brand-subtitle">Asistente de contenido</div>
         </div>
       </div>
 
-      <nav class="sidebar-nav" aria-label="Navegacion principal">
-        <router-link
-          v-for="link in links"
-          :key="link.name"
-          :to="{ name: link.name }"
-          class="sidebar-link"
-        >
+      <nav class="sidebar-nav" aria-label="Navegación principal">
+        <router-link v-for="link in links" :key="link.name" :to="{ name: link.name }" class="sidebar-link">
           <i :class="link.icon"></i>
           <span>{{ link.label }}</span>
         </router-link>
@@ -55,30 +50,30 @@ const closeSession = () => {
       <div class="sidebar-footer">
         <div class="mode-indicator">
           <span class="status-dot"></span>
-          {{ platformApi.isDemo ? 'Modo GitHub Pages' : 'Microservicios activos' }}
+          Sistema disponible
         </div>
         <button type="button" class="btn btn-outline-light btn-sm btn-block" @click="closeSession">
-          <i class="fa-solid fa-right-from-bracket mr-2"></i>Cerrar sesion
+          <i class="fa-solid fa-right-from-bracket mr-2"></i>Cerrar sesión
         </button>
       </div>
     </aside>
 
     <section class="app-content">
       <header class="topbar">
-        <button type="button" class="btn sidebar-toggle" aria-label="Abrir menu" @click="sidebarOpen = true">
+        <button type="button" class="btn sidebar-toggle" aria-label="Abrir menú" @click="sidebarOpen = true">
           <i class="fa-solid fa-bars"></i>
         </button>
         <div class="topbar-heading">
           <div class="page-eyebrow">MiaServicios</div>
-          <h1>{{ $route.meta.title || 'Plataforma' }}</h1>
+          <h1>{{ $route.meta.title || 'Inicio' }}</h1>
         </div>
-        <div class="user-chip">
+        <router-link :to="{ name: 'settings' }" class="user-chip" aria-label="Abrir configuración">
           <div class="user-avatar">{{ auth.user?.name?.charAt(0)?.toUpperCase() || 'M' }}</div>
           <div class="user-data d-none d-sm-block">
             <strong>{{ auth.user?.name }}</strong>
             <span>{{ auth.user?.role }}</span>
           </div>
-        </div>
+        </router-link>
       </header>
 
       <main class="page-container">

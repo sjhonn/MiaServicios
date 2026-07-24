@@ -1,46 +1,67 @@
-<!-- Describe la instalacion y operacion de MiaServicios. -->
 # MiaServicios
 
-Plataforma de procesamiento de texto con arquitectura de microservicios en Node.js y una interfaz Vue 3 preparada para GitHub Pages.
+Aplicación para analizar, organizar y reutilizar contenido desde una interfaz clara, adaptable y orientada al usuario.
+Saas - v2.0
 
-## Componentes
+## Funciones principales
 
-- `frontend`: Vue 3, Vite, Pinia, Vue Router, Bootstrap 4.6.2 y Font Awesome.
-- `api-gateway`: entrada unificada y orquestacion de servicios.
-- `auth-service`: registro, inicio de sesion y validacion JWT con SQLite.
-- `ai-service`: resumen, sentimiento, palabras clave y clasificacion mediante NLP local.
-- `history-service`: persistencia del historial en SQLite.
-- `docs`: compilacion estatica lista para GitHub Pages.
+- Registro, inicio de sesión, perfil y cambio de contraseña.
+- Resumen, análisis de sentimiento, palabras clave y clasificación.
+- Estadísticas de lectura y limpieza de texto.
+- Historial con búsqueda, filtros, ordenamiento, exportación y eliminación.
+- Plantillas reutilizables para tareas frecuentes.
+- Panel con actividad reciente, accesos directos y estado general.
+- Vista Experiencia con recorrido de uso, principios visuales y guía personalizada.
+- Carga de imágenes PNG, JPG, WEBP y SVG con almacenamiento en el navegador.
+- Exportación del recorrido de usuario en PNG y SVG.
+- Uso adaptable en escritorio, tablet y móvil.
+- Publicación gratuita desde la carpeta `/docs`.
 
 ## Requisitos
 
-- Node.js 22.18 o superior.
+- Node.js 20.18 o superior.
 - npm 10 o superior.
 
-## Ejecucion completa
+## Instalación
 
 ```bash
 npm install
 npm run dev
 ```
 
-Frontend: `http://localhost:5173`
+Aplicación web: `http://localhost:5173`
 
-Gateway: `http://localhost:4000`
-
-Credenciales iniciales:
+Acceso inicial:
 
 ```text
 demo@mia.local
 demo12345
 ```
 
-## Compilacion para GitHub Pages
+## Iconos
+
+No se requiere un comando adicional. `npm install` instala Font Awesome porque la dependencia ya está declarada en el proyecto.
+
+Para incorporarlo manualmente en una copia anterior:
+
+```bash
+npm install --workspace=@miaservicios/frontend @fortawesome/fontawesome-free
+```
+
+## Validación
+
+```bash
+npm run validate
+```
+
+## Publicación
 
 ```bash
 npm run build
 ```
 
-El resultado se genera en `/docs`. En GitHub, seleccione `Settings > Pages > Deploy from a branch > main > /docs`.
+La compilación se genera en `/docs`. En GitHub Pages seleccione la rama `main` y la carpeta `/docs`.
 
-La compilacion de produccion usa modo demostracion local para que GitHub Pages funcione sin un servidor. Para conectar un backend remoto, edite `frontend/.env.production` y establezca `VITE_DEMO_MODE=false` junto con `VITE_API_URL`.
+## Información técnica
+
+La versión del sistema y las tecnologías utilizadas se consultan dentro de la opción **Configuración**, en la sección **Sistemas y versiones**.
