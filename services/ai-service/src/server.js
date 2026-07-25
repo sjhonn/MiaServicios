@@ -15,6 +15,7 @@ import {
 
 const app = express();
 const port = Number(process.env.PORT || 4002);
+const host = process.env.HOST || '0.0.0.0';
 const textSchema = z.object({ text: z.string().trim().min(20).max(20000) });
 const summarySchema = textSchema.extend({ sentences: z.number().int().min(1).max(10).default(3) });
 const keywordSchema = textSchema.extend({ limit: z.number().int().min(3).max(25).default(8) });
@@ -64,6 +65,10 @@ app.use((error, request, response, next) => {
   response.status(500).json({ message: 'No fue posible procesar el texto.' });
 });
 
-app.listen(port, () => {
-  console.log(`ai-service activo en http://localhost:${port}`);
+const server = app.listen(port, host, () => {
+  console.log(`ai-service activo en http://${host}:${port}`);
 });
+
+const shutdown = () => server.close(() => process.exit(0));
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);

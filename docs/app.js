@@ -6,7 +6,9 @@ const storageKeys = {
   session: 'mia_static_session_v2',
   history: 'mia_static_history_v2',
   templates: 'mia_static_templates_v2',
-  architectureImage: 'mia_experience_image_v29'
+  architectureImage: 'mia_experience_image',
+  draft: 'mia_workspace_draft',
+  preferences: 'mia_user_preferences'
 };
 
 const readStorage = (key, fallback) => {
@@ -18,6 +20,15 @@ const readStorage = (key, fallback) => {
 };
 
 const writeStorage = (key, value) => localStorage.setItem(key, JSON.stringify(value));
+const defaultPreferences = { density: 'comfortable', contrast: 'standard', motion: 'full' };
+const applyPreferences = (value = readStorage(storageKeys.preferences, defaultPreferences)) => {
+  const preferences = { ...defaultPreferences, ...value };
+  document.documentElement.dataset.density = preferences.density;
+  document.documentElement.dataset.contrast = preferences.contrast;
+  document.documentElement.dataset.motion = preferences.motion;
+  return preferences;
+};
+applyPreferences();
 const bytesToHex = (bytes) => [...new Uint8Array(bytes)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 const randomSalt = () => bytesToHex(crypto.getRandomValues(new Uint8Array(16)));
 const hashPassword = async (password, salt) => {
@@ -243,12 +254,13 @@ createApp({
     const authForm = reactive({ name: '', email: 'demo@mia.local', password: 'demo12345' });
     const authError = ref('');
     const authLoading = ref(false);
-    const selected = ref('summarize');
+    const savedDraft = readStorage(storageKeys.draft, null);
+    const selected = ref(savedDraft?.operation || 'summarize');
     const executedType = ref('');
-    const text = ref('Durante el ultimo mes se redujo el tiempo de respuesta a los clientes y aumento el porcentaje de consultas resueltas en el primer contacto. Las solicitudes mas frecuentes estuvieron relacionadas con entregas, cambios y actualizacion de datos. El equipo recomienda reforzar las respuestas preventivas y revisar los casos que superaron el tiempo esperado para mantener una experiencia clara y consistente.');
-    const sentences = ref(3);
-    const keywordLimit = ref(8);
-    const casing = ref('preserve');
+    const text = ref(savedDraft?.text || 'Durante el ultimo mes se redujo el tiempo de respuesta a los clientes y aumento el porcentaje de consultas resueltas en el primer contacto. Las solicitudes mas frecuentes estuvieron relacionadas con entregas, cambios y actualizacion de datos. El equipo recomienda reforzar las respuestas preventivas y revisar los casos que superaron el tiempo esperado para mantener una experiencia clara y consistente.');
+    const sentences = ref(Number(savedDraft?.sentences || 3));
+    const keywordLimit = ref(Number(savedDraft?.keywordLimit || 8));
+    const casing = ref(savedDraft?.casing || 'preserve');
     const result = ref(null);
     const processingMs = ref(0);
     const labError = ref('');
@@ -266,8 +278,13 @@ createApp({
     const passwordForm = reactive({ currentPassword: '', newPassword: '', confirmation: '' });
     const notice = ref({ message: '', type: 'info' });
     const importInput = ref(null);
+    const textFileInput = ref(null);
     const imageInput = ref(null);
     const customImage = ref(readStorage(storageKeys.architectureImage, null));
+    const focusMode = ref(false);
+    const draftSavedAt = ref(savedDraft?.savedAt || '');
+    const visual = reactive(applyPreferences());
+    const openHelp = ref('first-task');
 
     const architectureJourney = [
       { title: 'Elige una herramienta', icon: 'fa-solid fa-wand-magic-sparkles', description: 'Selecciona resumen, sentimiento, palabras clave, clasificacion, estadisticas o limpieza de texto.' },
@@ -294,7 +311,7 @@ createApp({
     ];
 
     const systemVersions = [
-      { name: 'MiaServicios', version: '2.0', purpose: 'Version general de la plataforma' },
+      { name: 'MiaServicios', version: '3.0.0', purpose: 'Version estable de la plataforma' },
       { name: 'Vue', version: '3.5.13', purpose: 'Interfaz y componentes visuales' },
       { name: 'Bootstrap', version: '4.6.2', purpose: 'Diseno adaptable y estructura visual' },
       { name: 'Font Awesome', version: '6.7.2', purpose: 'Iconos de la interfaz' },
@@ -313,13 +330,26 @@ createApp({
       { id: 'statistics', label: 'Estadisticas', icon: 'fa-solid fa-chart-simple', description: 'Calcula lectura, densidad y estructura del contenido.' },
       { id: 'normalize', label: 'Normalizacion', icon: 'fa-solid fa-broom', description: 'Corrige espacios, saltos y signos de puntuacion.' }
     ];
+    const helpGuides = [
+      { id: 'first-task', icon: 'fa-solid fa-play', title: 'Realizar la primera tarea', steps: ['Abra Espacio de trabajo.', 'Elija la tarea que desea realizar.', 'Escriba, pegue o importe el contenido.', 'Revise el resultado y guardelo o descarguelo.'] },
+      { id: 'resume-work', icon: 'fa-solid fa-arrow-rotate-right', title: 'Continuar un trabajo pendiente', steps: ['El borrador se guarda mientras escribe.', 'Regrese al Espacio de trabajo desde cualquier vista.', 'El contenido y la tarea seleccionada se recuperaran automaticamente.'] },
+      { id: 'reuse-result', icon: 'fa-solid fa-clock-rotate-left', title: 'Reutilizar un resultado', steps: ['Abra Historial.', 'Busque por contenido o filtre por tipo de tarea.', 'Use una plantilla o copie el resultado para continuar.'] },
+      { id: 'backup', icon: 'fa-solid fa-box-archive', title: 'Crear un respaldo', steps: ['Abra Configuracion.', 'Ubique Respaldo de datos.', 'Exporte el archivo y guardelo en una ubicacion segura.'] }
+    ];
+    const helpQuestions = [
+      { question: '¿Mi trabajo se pierde al cerrar la pagina?', answer: 'El borrador activo se guarda automaticamente en el navegador. Los resultados completados quedan disponibles en el Historial.' },
+      { question: '¿Puedo usar un archivo de texto?', answer: 'Si. En Espacio de trabajo puede importar archivos TXT de hasta 1 MB.' },
+      { question: '¿Donde cambio la vista de la interfaz?', answer: 'En Configuracion puede elegir una vista comoda o compacta, ademas de ajustar contraste y movimiento.' },
+      { question: '¿Como traslado mi informacion a otro equipo?', answer: 'Exporte un respaldo desde Configuracion e importelo en el otro navegador.' }
+    ];
     const pageTitle = computed(() => ({
       dashboard: 'Panel general',
-      lab: 'Herramientas',
+      lab: 'Espacio de trabajo',
       history: 'Historial',
       templates: 'Plantillas',
       settings: 'Configuracion',
-      experience: 'Experiencia'
+      experience: 'Experiencia',
+      help: 'Ayuda'
     })[page.value] || 'Panel general');
     const userHistory = computed(() => history.value.filter((item) => item.userId === session.value?.user?.id));
     const totalCharacters = computed(() => userHistory.value.reduce((sum, item) => sum + Number(item.inputLength || 0), 0));
@@ -348,6 +378,15 @@ createApp({
       return values;
     });
     const maxDaily = computed(() => Math.max(...dailyActivity.value.map((item) => item.total), 1));
+    const firstName = computed(() => session.value?.user?.name?.split(' ')[0] || 'Usuario');
+    const todayMessage = computed(() => {
+      const hour = new Date().getHours();
+      if (hour < 12) return 'Buenos dias';
+      if (hour < 19) return 'Buenas tardes';
+      return 'Buenas noches';
+    });
+    const draftWords = computed(() => savedDraft?.text?.trim() ? savedDraft.text.trim().split(/\s+/).length : (text.value.trim() ? text.value.trim().split(/\s+/).length : 0));
+    const draftStatus = computed(() => draftSavedAt.value ? `Borrador guardado a las ${new Date(draftSavedAt.value).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })}` : 'El borrador se guarda automaticamente');
     const textMetrics = computed(() => {
       const value = text.value.trim();
       const words = value ? value.split(/\s+/).length : 0;
@@ -474,7 +513,14 @@ createApp({
       };
       history.value = [entry, ...history.value];
       writeStorage(storageKeys.history, history.value);
+      saveDraft();
       notify('La tarea fue completada y guardada en el historial.', 'success');
+    };
+
+    const saveDraft = () => {
+      const savedAt = new Date().toISOString();
+      writeStorage(storageKeys.draft, { text: text.value, operation: selected.value, sentences: sentences.value, keywordLimit: keywordLimit.value, casing: casing.value, savedAt });
+      draftSavedAt.value = savedAt;
     };
 
     const clearLab = () => {
@@ -482,6 +528,31 @@ createApp({
       result.value = null;
       labError.value = '';
       executedType.value = '';
+      draftSavedAt.value = '';
+      localStorage.removeItem(storageKeys.draft);
+    };
+
+    const importText = async (event) => {
+      const file = event.target.files?.[0];
+      event.target.value = '';
+      if (!file) return;
+      if (file.size > 1024 * 1024) return notify('El archivo supera el limite de 1 MB.', 'danger');
+      if (!file.name.toLowerCase().endsWith('.txt') && file.type !== 'text/plain') return notify('Seleccione un archivo TXT.', 'danger');
+      text.value = (await file.text()).slice(0, 20000);
+      result.value = null;
+      notify('Contenido importado.', 'success');
+    };
+
+    const pasteContent = async () => {
+      try {
+        const value = await navigator.clipboard.readText();
+        if (!value.trim()) throw new Error();
+        text.value = value.slice(0, 20000);
+        result.value = null;
+        notify('Contenido pegado desde el portapapeles.', 'success');
+      } catch {
+        notify('No fue posible leer el portapapeles. Pegue el contenido manualmente.', 'danger');
+      }
     };
 
     const copyResult = async () => {
@@ -618,11 +689,12 @@ createApp({
 
     const exportBackup = () => {
       const backup = {
-        version: 2,
+        version: 3,
         exportedAt: new Date().toISOString(),
         user: session.value.user,
         history: userHistory.value,
-        templates: templates.value.filter((item) => !item.builtIn)
+        templates: templates.value.filter((item) => !item.builtIn),
+        preferences: visual
       };
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
       downloadFile(`miaservicios-respaldo-${timestamp}.json`, JSON.stringify(backup, null, 2), 'application/json;charset=utf-8');
@@ -649,12 +721,22 @@ createApp({
           templates.value = [...defaultTemplates, ...custom];
           writeStorage(storageKeys.templates, custom);
         }
+        if (payload.preferences) {
+          Object.assign(visual, applyPreferences(payload.preferences));
+          writeStorage(storageKeys.preferences, visual);
+        }
         notify(`${importedHistory.length} registros importados.`, 'success');
       } catch (error) {
         notify(error.message || 'El respaldo no es valido.', 'danger');
       } finally {
         event.target.value = '';
       }
+    };
+
+    const saveAppearance = () => {
+      writeStorage(storageKeys.preferences, visual);
+      applyPreferences(visual);
+      notify('Preferencias visuales aplicadas.', 'success');
     };
 
     const formatBytes = (bytes) => !bytes ? '0 KB' : `${(bytes / 1024).toFixed(bytes >= 1024 * 1024 ? 0 : 1)} KB`;
@@ -780,6 +862,10 @@ createApp({
     watch([historySearch, historyType, historySort, historyPageSize], () => {
       historyPage.value = 1;
     });
+    watch([text, selected, sentences, keywordLimit, casing], () => {
+      window.clearTimeout(window.miaDraftTimer);
+      window.miaDraftTimer = window.setTimeout(saveDraft, 700);
+    });
     watch(historyPageCount, (value) => {
       if (historyPage.value > value) historyPage.value = value;
     });
@@ -820,8 +906,16 @@ createApp({
       processingMs,
       labError,
       textMetrics,
+      draftWords,
+      draftStatus,
+      firstName,
+      todayMessage,
+      focusMode,
+      textFileInput,
       execute,
       clearLab,
+      importText,
+      pasteContent,
       copyResult,
       exportResult,
       userHistory,
@@ -862,7 +956,12 @@ createApp({
       exportBackup,
       importBackup,
       importInput,
+      visual,
+      saveAppearance,
       notice,
+      helpGuides,
+      helpQuestions,
+      openHelp,
       architectureJourney,
       architectureComponents,
       architectureBenefits,
@@ -955,11 +1054,12 @@ createApp({
         </div>
         <nav class="sidebar-nav">
           <button class="sidebar-link w-100 border-0" :class="{ 'router-link-active': page === 'dashboard' }" @click="goTo('dashboard')"><i class="fa-solid fa-chart-line"></i><span>Panel general</span></button>
-          <button class="sidebar-link w-100 border-0" :class="{ 'router-link-active': page === 'lab' }" @click="goTo('lab')"><i class="fa-solid fa-wand-magic-sparkles"></i><span>Herramientas</span></button>
+          <button class="sidebar-link w-100 border-0" :class="{ 'router-link-active': page === 'lab' }" @click="goTo('lab')"><i class="fa-solid fa-pen-to-square"></i><span>Espacio de trabajo</span></button>
           <button class="sidebar-link w-100 border-0" :class="{ 'router-link-active': page === 'history' }" @click="goTo('history')"><i class="fa-solid fa-clock-rotate-left"></i><span>Historial</span></button>
           <button class="sidebar-link w-100 border-0" :class="{ 'router-link-active': page === 'templates' }" @click="goTo('templates')"><i class="fa-solid fa-layer-group"></i><span>Plantillas</span></button>
           <button class="sidebar-link w-100 border-0" :class="{ 'router-link-active': page === 'settings' }" @click="goTo('settings')"><i class="fa-solid fa-sliders"></i><span>Configuración</span></button>
           <button class="sidebar-link w-100 border-0" :class="{ 'router-link-active': page === 'experience' }" @click="goTo('experience')"><i class="fa-solid fa-compass"></i><span>Experiencia</span></button>
+          <button class="sidebar-link w-100 border-0" :class="{ 'router-link-active': page === 'help' }" @click="goTo('help')"><i class="fa-solid fa-circle-question"></i><span>Ayuda</span></button>
         </nav>
         <div class="sidebar-footer">
           <div class="mode-indicator"><span class="status-dot"></span>Sistema disponible</div>
@@ -979,85 +1079,80 @@ createApp({
 
         <main class="page-container">
           <template v-if="page === 'dashboard'">
-            <div class="section-heading section-heading-row">
-              <div><h2>Tu actividad en MiaServicios</h2><p>Revise lo que ha realizado, continúe una tarea y consulte sus resultados recientes desde un solo lugar.</p></div>
-              <button class="btn btn-primary" @click="goTo('lab')"><i class="fa-solid fa-plus mr-2"></i>Comenzar una tarea</button>
-            </div>
+            <section class="welcome-panel">
+              <div><span class="welcome-kicker">{{ todayMessage }}, {{ firstName }}</span><h2>¿Qué desea trabajar hoy?</h2><p>Continúe un borrador, inicie una tarea o recupere un resultado anterior desde el mismo panel.</p></div>
+              <button class="btn btn-primary btn-lg" @click="goTo('lab')"><i class="fa-solid fa-plus mr-2"></i>Comenzar una tarea</button>
+            </section>
+
+            <section v-if="text.trim()" class="draft-banner">
+              <div class="draft-banner-icon"><i class="fa-solid fa-file-pen"></i></div>
+              <div class="draft-banner-copy"><span>Borrador disponible</span><strong>{{ draftWords }} palabras listas para continuar</strong><p>{{ text.slice(0, 150) }}{{ text.length > 150 ? '…' : '' }}</p></div>
+              <button class="btn btn-outline-light" @click="goTo('lab')">Continuar borrador</button>
+            </section>
+
+            <section class="quick-action-grid">
+              <button class="quick-action-card text-left" @click="goTo('lab')"><span class="quick-action-icon"><i class="fa-solid fa-pen-to-square"></i></span><span><strong>Nueva tarea</strong><small>Analice o prepare contenido.</small></span><i class="fa-solid fa-arrow-right"></i></button>
+              <button class="quick-action-card text-left" @click="goTo('history')"><span class="quick-action-icon"><i class="fa-solid fa-clock-rotate-left"></i></span><span><strong>Revisar historial</strong><small>Encuentre resultados anteriores.</small></span><i class="fa-solid fa-arrow-right"></i></button>
+              <button class="quick-action-card text-left" @click="goTo('templates')"><span class="quick-action-icon"><i class="fa-solid fa-layer-group"></i></span><span><strong>Usar plantilla</strong><small>Empiece con contenido preparado.</small></span><i class="fa-solid fa-arrow-right"></i></button>
+              <button class="quick-action-card text-left" @click="goTo('help')"><span class="quick-action-icon"><i class="fa-solid fa-circle-question"></i></span><span><strong>Consultar ayuda</strong><small>Revise guías y respuestas.</small></span><i class="fa-solid fa-arrow-right"></i></button>
+            </section>
 
             <section class="metric-grid">
               <article class="metric-card"><div class="metric-icon"><i class="fa-solid fa-list-check"></i></div><div><div class="metric-label">Tareas realizadas</div><div class="metric-value">{{ formatNumber(userHistory.length) }}</div><div class="metric-detail">Resultados guardados</div></div></article>
-              <article class="metric-card"><div class="metric-icon"><i class="fa-solid fa-file-lines"></i></div><div><div class="metric-label">Contenido revisado</div><div class="metric-value">{{ formatNumber(totalCharacters) }}</div><div class="metric-detail">Caracteres analizados</div></div></article>
+              <article class="metric-card"><div class="metric-icon"><i class="fa-solid fa-file-lines"></i></div><div><div class="metric-label">Contenido revisado</div><div class="metric-value">{{ formatNumber(totalCharacters) }}</div><div class="metric-detail">Caracteres procesados</div></div></article>
               <article class="metric-card"><div class="metric-icon"><i class="fa-solid fa-stopwatch"></i></div><div><div class="metric-label">Respuesta promedio</div><div class="metric-value">{{ averageMs }} ms</div><div class="metric-detail">Tiempo habitual de espera</div></div></article>
-              <article class="metric-card"><div class="metric-icon"><i class="fa-solid fa-star"></i></div><div><div class="metric-label">Herramienta favorita</div><div class="metric-value">{{ primaryOperation }}</div><div class="metric-detail">La más utilizada</div></div></article>
+              <article class="metric-card"><div class="metric-icon"><i class="fa-solid fa-star"></i></div><div><div class="metric-label">Herramienta frecuente</div><div class="metric-value">{{ primaryOperation }}</div><div class="metric-detail">La más utilizada</div></div></article>
             </section>
 
             <section class="dashboard-grid dashboard-grid-wide">
               <article class="panel-card">
                 <div class="panel-title"><div><h2>Actividad de los últimos siete días</h2><div class="panel-subtitle">Tareas guardadas por día</div></div></div>
-                <div class="activity-chart">
-                  <div v-for="item in dailyActivity" :key="item.date" class="activity-column">
-                    <div class="activity-value">{{ item.total }}</div>
-                    <div class="activity-track"><div class="activity-bar" :style="{ height: barHeight(item.total) }"></div></div>
-                    <div class="activity-label">{{ dayLabel(item.date) }}</div>
-                  </div>
-                </div>
+                <div class="activity-chart"><div v-for="item in dailyActivity" :key="item.date" class="activity-column"><div class="activity-value">{{ item.total }}</div><div class="activity-track"><div class="activity-bar" :style="{ height: barHeight(item.total) }"></div></div><div class="activity-label">{{ dayLabel(item.date) }}</div></div></div>
               </article>
-              <aside class="panel-card">
+              <aside class="panel-card readiness-card">
                 <div class="panel-title"><h3>Disponibilidad</h3></div>
-                <div class="service-summary"><strong>3/3</strong><span>funciones listas para usar</span></div>
-                <div class="service-list mt-3">
-                  <div class="service-row"><div class="service-name"><i class="fa-solid fa-user-shield"></i>Acceso a la cuenta</div><div class="service-state">Listo</div></div>
-                  <div class="service-row"><div class="service-name"><i class="fa-solid fa-wand-magic-sparkles"></i>Herramientas de texto</div><div class="service-state">Listo</div></div>
-                  <div class="service-row"><div class="service-name"><i class="fa-solid fa-clock-rotate-left"></i>Historial personal</div><div class="service-state">Listo</div></div>
-                </div>
+                <div class="readiness-ring" style="--readiness: 360deg"><div><strong>3/3</strong><span>funciones listas</span></div></div>
+                <p>MiaServicios está listo para continuar con su trabajo.</p>
+                <button class="btn btn-outline-light btn-sm" @click="goTo('settings')">Revisar configuración</button>
               </aside>
             </section>
 
             <section class="panel-card mt-4">
               <div class="panel-title"><div><h2>Resultados recientes</h2><div class="panel-subtitle">Acceda rápidamente a las últimas tareas guardadas.</div></div><button class="btn btn-outline-light btn-sm" @click="goTo('history')">Ver todo</button></div>
-              <div v-if="userHistory.length" class="table-responsive">
-                <table class="table table-dark mb-0"><thead><tr><th>Herramienta</th><th>Contenido</th><th>Respuesta</th><th>Fecha</th></tr></thead>
-                  <tbody><tr v-for="item in userHistory.slice(0, 6)" :key="item.id"><td><span class="badge-operation">{{ operationLabels[item.type] }}</span></td><td class="table-preview">{{ item.inputPreview }}</td><td>{{ item.processingMs }} ms</td><td>{{ formatDate(item.createdAt) }}</td></tr></tbody>
-                </table>
-              </div>
-              <div v-else class="empty-state"><div class="empty-icon"><i class="fa-solid fa-chart-column"></i></div><h3>Todavía no hay actividad</h3><p>Comience una tarea para guardar su primer resultado.</p><button class="btn btn-primary btn-sm" @click="goTo('lab')">Abrir herramientas</button></div>
+              <div v-if="userHistory.length" class="recent-result-grid"><article v-for="item in userHistory.slice(0, 6)" :key="item.id" class="recent-result-card"><div class="recent-result-top"><span class="badge-operation">{{ operationLabels[item.type] }}</span><small>{{ formatDate(item.createdAt) }}</small></div><p>{{ item.inputPreview }}</p><div><span>{{ item.inputLength }} caracteres</span><span>{{ item.processingMs }} ms</span></div></article></div>
+              <div v-else class="empty-state"><div class="empty-icon"><i class="fa-solid fa-chart-column"></i></div><h3>Todavía no hay actividad</h3><p>Comience una tarea para guardar su primer resultado.</p><button class="btn btn-primary btn-sm" @click="goTo('lab')">Abrir espacio de trabajo</button></div>
             </section>
           </template>
 
           <template v-if="page === 'lab'">
-            <div class="section-heading"><h2>Herramientas de texto</h2><p>Elija una herramienta, agregue su contenido y obtenga un resultado listo para revisar, copiar o descargar.</p></div>
-            <section class="operation-grid">
-              <button v-for="operation in operations" :key="operation.id" class="operation-card" :class="{ 'is-active': selected === operation.id }" @click="selected = operation.id; result = null">
-                <i :class="operation.icon"></i><strong>{{ operation.label }}</strong><span>{{ operation.description }}</span>
-              </button>
-            </section>
+            <div class="workspace" :class="{ 'workspace-focus': focusMode }">
+              <div class="section-heading section-heading-row"><div><h2>Espacio de trabajo</h2><p>Agregue su contenido, seleccione una tarea y revise el resultado sin perder el avance.</p></div><button class="btn btn-outline-light" @click="focusMode = !focusMode"><i :class="focusMode ? 'fa-solid fa-compress' : 'fa-solid fa-expand'" class="mr-2"></i>{{ focusMode ? 'Salir del enfoque' : 'Modo enfoque' }}</button></div>
+              <section class="operation-grid"><button v-for="operation in operations" :key="operation.id" class="operation-card" :class="{ 'is-active': selected === operation.id }" @click="selected = operation.id; result = null"><i :class="operation.icon"></i><strong>{{ operation.label }}</strong><span>{{ operation.description }}</span></button></section>
 
-            <div class="lab-grid">
-              <section class="panel-card">
-                <div class="panel-title"><div><h2>{{ operationLabels[selected] }}</h2><div class="panel-subtitle">Complete el contenido y ajuste solo las opciones necesarias.</div></div><button class="btn btn-outline-light btn-sm" @click="clearLab"><i class="fa-solid fa-eraser mr-2"></i>Limpiar</button></div>
-                <div v-if="labError" class="alert alert-danger-custom">{{ labError }}</div>
-                <div class="form-group">
-                  <label for="static-text">Contenido</label>
-                  <textarea id="static-text" v-model="text" class="form-control text-editor" rows="13" maxlength="20000" placeholder="Escriba o pegue el contenido que desea revisar"></textarea>
-                  <div class="editor-metrics"><span>{{ textMetrics.characters }} caracteres</span><span>{{ textMetrics.words }} palabras</span><span>{{ textMetrics.sentences }} oraciones</span><span>{{ textMetrics.reading }} min de lectura</span></div>
-                </div>
-                <div v-if="selected === 'summarize'" class="form-group"><label>Cantidad de oraciones</label><select v-model.number="sentences" class="custom-select"><option v-for="value in 10" :key="value" :value="value">{{ value }}</option></select></div>
-                <div v-if="selected === 'keywords'" class="form-group"><label>Cantidad de términos</label><select v-model.number="keywordLimit" class="custom-select"><option v-for="value in [5,8,10,12,15,20,25]" :key="value" :value="value">{{ value }}</option></select></div>
-                <div v-if="selected === 'normalize'" class="form-group"><label>Tratamiento de mayúsculas</label><select v-model="casing" class="custom-select"><option value="preserve">Conservar formato</option><option value="lower">Convertir a minúsculas</option><option value="upper">Convertir a mayúsculas</option></select></div>
-                <button class="btn btn-primary" :disabled="text.trim().length < 20" @click="execute"><i class="fa-solid fa-wand-magic-sparkles mr-2"></i>Obtener resultado</button>
-              </section>
+              <div class="lab-grid">
+                <section class="panel-card">
+                  <div class="panel-title"><div><h2>{{ operationLabels[selected] }}</h2><div class="panel-subtitle">Complete el contenido y ajuste solo las opciones necesarias.</div></div><button class="btn btn-outline-light btn-sm" @click="clearLab"><i class="fa-solid fa-eraser mr-2"></i>Limpiar</button></div>
+                  <div class="workspace-toolbar"><button class="btn btn-sm btn-outline-secondary" @click="pasteContent"><i class="fa-regular fa-clipboard mr-2"></i>Pegar</button><button class="btn btn-sm btn-outline-secondary" @click="$refs.textFileInput.click()"><i class="fa-solid fa-file-arrow-up mr-2"></i>Importar TXT</button><input ref="textFileInput" type="file" accept=".txt,text/plain" class="d-none" @change="importText"><span class="draft-status"><i class="fa-solid fa-cloud-arrow-up mr-2"></i>{{ draftStatus }}</span></div>
+                  <div v-if="labError" class="alert alert-danger-custom">{{ labError }}</div>
+                  <div class="form-group"><label for="static-text">Contenido</label><textarea id="static-text" v-model="text" class="form-control text-editor" rows="13" maxlength="20000" placeholder="Escriba, pegue o importe el contenido que desea revisar"></textarea><div class="editor-metrics"><span>{{ textMetrics.characters }} caracteres</span><span>{{ textMetrics.words }} palabras</span><span>{{ textMetrics.sentences }} oraciones</span><span>{{ textMetrics.reading }} min de lectura</span></div></div>
+                  <div v-if="selected === 'summarize'" class="form-group"><label>Cantidad de oraciones</label><select v-model.number="sentences" class="custom-select"><option v-for="value in 10" :key="value" :value="value">{{ value }}</option></select></div>
+                  <div v-if="selected === 'keywords'" class="form-group"><label>Cantidad de términos</label><select v-model.number="keywordLimit" class="custom-select"><option v-for="value in [5,8,10,12,15,20,25]" :key="value" :value="value">{{ value }}</option></select></div>
+                  <div v-if="selected === 'normalize'" class="form-group"><label>Tratamiento de mayúsculas</label><select v-model="casing" class="custom-select"><option value="preserve">Conservar formato</option><option value="lower">Convertir a minúsculas</option><option value="upper">Convertir a mayúsculas</option></select></div>
+                  <div class="workspace-submit-row"><button class="btn btn-primary" :disabled="text.trim().length < 20" @click="execute"><i class="fa-solid fa-wand-magic-sparkles mr-2"></i>Obtener resultado</button><span>El borrador se guarda automáticamente</span></div>
+                </section>
 
-              <section class="panel-card result-panel">
-                <div class="panel-title"><h2>Resultado</h2><div v-if="result" class="btn-group"><button class="btn btn-outline-light btn-sm" @click="copyResult"><i class="fa-regular fa-copy mr-2"></i>Copiar</button><button class="btn btn-outline-light btn-sm" @click="exportResult('txt')">TXT</button><button class="btn btn-outline-light btn-sm" @click="exportResult('json')">JSON</button></div></div>
-                <div v-if="!result" class="result-placeholder"><div><i class="fa-solid fa-file-lines"></i>El resultado aparecerá en este panel.</div></div>
-                <div v-else-if="executedType === 'summarize'" class="result-box">{{ result.summary }}</div>
-                <div v-else-if="executedType === 'sentiment'" class="result-metric"><div><span>Resultado</span><strong>{{ result.label }}</strong></div><div><span>Puntaje</span><strong>{{ result.score }}</strong></div><div><span>Positivas</span><strong>{{ result.positiveMatches }}</strong></div><div><span>Negativas</span><strong>{{ result.negativeMatches }}</strong></div></div>
-                <div v-else-if="executedType === 'keywords'" class="keyword-list"><span v-for="keyword in result.keywords" :key="keyword.word" class="keyword-chip">{{ keyword.word }} <strong>{{ keyword.count }}</strong></span></div>
-                <div v-else-if="executedType === 'classify'" class="result-metric"><div><span>Categoría</span><strong>{{ result.category.replace('_', ' ') }}</strong></div><div><span>Confianza</span><strong>{{ Math.round(result.confidence * 100) }}%</strong></div></div>
-                <div v-else-if="executedType === 'statistics'" class="result-metric result-metric-wide"><div><span>Caracteres</span><strong>{{ result.characters }}</strong></div><div><span>Palabras</span><strong>{{ result.words }}</strong></div><div><span>Palabras únicas</span><strong>{{ result.uniqueWords }}</strong></div><div><span>Oraciones</span><strong>{{ result.sentences }}</strong></div><div><span>Párrafos</span><strong>{{ result.paragraphs }}</strong></div><div><span>Densidad léxica</span><strong>{{ result.lexicalDensity }}</strong></div><div><span>Promedio por palabra</span><strong>{{ result.averageWordLength }}</strong></div><div><span>Lectura estimada</span><strong>{{ result.estimatedReadingMinutes }} min</strong></div></div>
-                <div v-else-if="executedType === 'normalize'" class="result-box result-box-pre">{{ result.text }}</div>
-                <div v-if="result" class="result-footer"><span>Resultado generado por MiaServicios</span><span>Tiempo: {{ processingMs }} ms</span></div>
-              </section>
+                <section class="panel-card result-panel">
+                  <div class="panel-title"><div><h2>Resultado</h2><div v-if="result" class="panel-subtitle">Listo para revisar, copiar o descargar.</div></div><div v-if="result" class="btn-group"><button class="btn btn-outline-light btn-sm" @click="copyResult"><i class="fa-regular fa-copy mr-2"></i>Copiar</button><button class="btn btn-outline-light btn-sm" @click="exportResult('txt')">TXT</button><button class="btn btn-outline-light btn-sm" @click="exportResult('json')">JSON</button></div></div>
+                  <div v-if="!result" class="result-placeholder"><div><i class="fa-solid fa-file-lines"></i>El resultado aparecerá en este panel.</div></div>
+                  <div v-else-if="executedType === 'summarize'" class="result-box">{{ result.summary }}</div>
+                  <div v-else-if="executedType === 'sentiment'" class="result-metric"><div><span>Resultado</span><strong>{{ result.label }}</strong></div><div><span>Puntaje</span><strong>{{ result.score }}</strong></div><div><span>Positivas</span><strong>{{ result.positiveMatches }}</strong></div><div><span>Negativas</span><strong>{{ result.negativeMatches }}</strong></div></div>
+                  <div v-else-if="executedType === 'keywords'" class="keyword-list"><span v-for="keyword in result.keywords" :key="keyword.word" class="keyword-chip">{{ keyword.word }} <strong>{{ keyword.count }}</strong></span></div>
+                  <div v-else-if="executedType === 'classify'" class="result-metric"><div><span>Categoría</span><strong>{{ result.category.replace('_', ' ') }}</strong></div><div><span>Confianza</span><strong>{{ Math.round(result.confidence * 100) }}%</strong></div></div>
+                  <div v-else-if="executedType === 'statistics'" class="result-metric result-metric-wide"><div><span>Caracteres</span><strong>{{ result.characters }}</strong></div><div><span>Palabras</span><strong>{{ result.words }}</strong></div><div><span>Palabras únicas</span><strong>{{ result.uniqueWords }}</strong></div><div><span>Oraciones</span><strong>{{ result.sentences }}</strong></div><div><span>Párrafos</span><strong>{{ result.paragraphs }}</strong></div><div><span>Densidad léxica</span><strong>{{ result.lexicalDensity }}</strong></div><div><span>Promedio por palabra</span><strong>{{ result.averageWordLength }}</strong></div><div><span>Lectura estimada</span><strong>{{ result.estimatedReadingMinutes }} min</strong></div></div>
+                  <div v-else-if="executedType === 'normalize'" class="result-box result-box-pre">{{ result.text }}</div>
+                  <div v-if="result" class="result-footer"><span>Resultado generado por MiaServicios</span><span>Tiempo: {{ processingMs }} ms</span></div>
+                </section>
+              </div>
             </div>
           </template>
 
@@ -1087,14 +1182,26 @@ createApp({
           </template>
 
           <template v-if="page === 'settings'">
-            <div class="section-heading"><h2>Configuración</h2><p>Administre su cuenta, proteja sus datos y consulte la información técnica de MiaServicios.</p></div>
+            <div class="section-heading"><h2>Configuración</h2><p>Administre su cuenta, la experiencia visual, los respaldos y la información de MiaServicios.</p></div>
             <div class="settings-grid">
               <section class="panel-card"><div class="panel-title"><h2>Perfil</h2></div><div class="profile-summary"><div class="user-avatar profile-avatar">{{ session.user.name.charAt(0).toUpperCase() }}</div><div><strong>{{ session.user.email }}</strong><span>Cuenta creada: {{ formatDate(session.user.createdAt) }}</span></div></div><div class="form-group mt-4"><label>Nombre completo</label><input v-model="profileName" type="text" class="form-control" minlength="2" maxlength="80"></div><button class="btn btn-primary" @click="saveProfile"><i class="fa-solid fa-floppy-disk mr-2"></i>Guardar perfil</button></section>
               <section class="panel-card"><div class="panel-title"><h2>Seguridad</h2></div><div class="form-group"><label>Contraseña actual</label><input v-model="passwordForm.currentPassword" type="password" class="form-control"></div><div class="form-group"><label>Nueva contraseña</label><input v-model="passwordForm.newPassword" type="password" class="form-control" minlength="8"></div><div class="form-group"><label>Confirmar contraseña</label><input v-model="passwordForm.confirmation" type="password" class="form-control" minlength="8"></div><button class="btn btn-primary" @click="changePassword"><i class="fa-solid fa-key mr-2"></i>Cambiar contraseña</button></section>
-              <section class="panel-card"><div class="panel-title"><h2>Respaldo de datos</h2></div><p class="text-muted">Exporte el historial y las plantillas en un archivo JSON para conservar una copia o trasladar la información.</p><div class="data-actions"><button class="btn btn-outline-light" @click="exportBackup"><i class="fa-solid fa-file-export mr-2"></i>Exportar respaldo</button><button class="btn btn-outline-light" @click="$refs.importInput.click()"><i class="fa-solid fa-file-import mr-2"></i>Importar respaldo</button><input ref="importInput" type="file" accept="application/json" class="d-none" @change="importBackup"><button class="btn btn-outline-danger" @click="clearHistory"><i class="fa-solid fa-trash-can mr-2"></i>Eliminar historial</button></div></section>
-              <section class="panel-card"><div class="panel-title"><h2>Estado del sistema</h2></div><div class="alert alert-dark-custom mb-3"><strong>Ejecución desde el navegador</strong><div class="small mt-2 text-muted">Versión de MiaServicios: 2.0 · Estado: Disponible</div></div><div class="service-list"><div class="service-row"><div class="service-name"><i class="fa-solid fa-user-lock"></i>Acceso y seguridad</div><div class="service-state">Disponible</div></div><div class="service-row"><div class="service-name"><i class="fa-solid fa-brain"></i>Procesamiento de contenido</div><div class="service-state">Disponible</div></div><div class="service-row"><div class="service-name"><i class="fa-solid fa-clock-rotate-left"></i>Historial de resultados</div><div class="service-state">Disponible</div></div></div></section>
+              <section class="panel-card settings-appearance-card"><div class="panel-title"><div><h2>Apariencia y accesibilidad</h2><div class="panel-subtitle">Ajuste la lectura y el movimiento de la interfaz.</div></div><i class="fa-solid fa-universal-access settings-title-icon"></i></div><div class="preference-grid"><div class="form-group"><label>Espaciado</label><select v-model="visual.density" class="custom-select"><option value="comfortable">Cómodo</option><option value="compact">Compacto</option></select></div><div class="form-group"><label>Contraste</label><select v-model="visual.contrast" class="custom-select"><option value="standard">Estándar</option><option value="high">Alto contraste</option></select></div><div class="form-group"><label>Movimiento</label><select v-model="visual.motion" class="custom-select"><option value="full">Normal</option><option value="reduced">Reducido</option></select></div></div><button class="btn btn-primary" @click="saveAppearance"><i class="fa-solid fa-check mr-2"></i>Aplicar preferencias</button></section>
+              <section class="panel-card"><div class="panel-title"><h2>Respaldo de datos</h2></div><p class="text-muted">Exporte el historial, las plantillas y las preferencias para conservar una copia o trasladar la información.</p><div class="data-actions"><button class="btn btn-outline-light" @click="exportBackup"><i class="fa-solid fa-file-export mr-2"></i>Exportar respaldo</button><button class="btn btn-outline-light" @click="$refs.importInput.click()"><i class="fa-solid fa-file-import mr-2"></i>Importar respaldo</button><input ref="importInput" type="file" accept="application/json" class="d-none" @change="importBackup"><button class="btn btn-outline-danger" @click="clearHistory"><i class="fa-solid fa-trash-can mr-2"></i>Eliminar historial</button></div></section>
+              <section class="panel-card"><div class="panel-title"><h2>Estado del sistema</h2></div><div class="alert alert-dark-custom mb-3"><strong>Funcionamiento desde el navegador</strong><div class="small mt-2 text-muted">Estado: Disponible para uso local y publicación</div></div><div class="service-list"><div class="service-row"><div class="service-name"><i class="fa-solid fa-user-lock"></i>Acceso y seguridad</div><div class="service-state">Disponible</div></div><div class="service-row"><div class="service-name"><i class="fa-solid fa-brain"></i>Procesamiento de contenido</div><div class="service-state">Disponible</div></div><div class="service-row"><div class="service-name"><i class="fa-solid fa-clock-rotate-left"></i>Historial de resultados</div><div class="service-state">Disponible</div></div></div></section>
               <section class="panel-card settings-system-card"><div class="panel-title"><div><h2>Sistemas y versiones</h2><div class="panel-subtitle">Detalle técnico centralizado para mantenimiento y verificación.</div></div><span class="architecture-badge"><i class="fa-solid fa-gears mr-2"></i>Información técnica</span></div><div class="system-version-grid"><article v-for="item in systemVersions" :key="item.name" class="system-version-item"><div class="system-version-icon"><i class="fa-solid fa-cube"></i></div><div><strong>{{ item.name }}</strong><span>{{ item.purpose }}</span></div><code>{{ item.version }}</code></article></div></section>
             </div>
+          </template>
+
+
+          <template v-if="page === 'help'">
+            <div class="section-heading"><h2>Guía de uso</h2><p>Consulte instrucciones breves para completar las acciones más frecuentes dentro de MiaServicios.</p></div>
+            <section class="help-hero panel-card"><div class="help-hero-icon"><i class="fa-solid fa-circle-question"></i></div><div><h2>Encuentre una respuesta rápida</h2><p>La plataforma conserva el avance, organiza los resultados y mantiene las acciones principales disponibles en cada momento.</p></div><button class="btn btn-primary" @click="goTo('lab')">Abrir espacio de trabajo</button></section>
+            <div class="help-layout">
+              <section class="panel-card"><div class="panel-title"><h2>Guías rápidas</h2></div><div class="guide-list"><article v-for="guide in helpGuides" :key="guide.id" class="guide-item" :class="{ 'is-open': openHelp === guide.id }"><button type="button" @click="openHelp = openHelp === guide.id ? '' : guide.id"><span class="guide-icon"><i :class="guide.icon"></i></span><strong>{{ guide.title }}</strong><i :class="openHelp === guide.id ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down'"></i></button><ol v-if="openHelp === guide.id"><li v-for="step in guide.steps" :key="step">{{ step }}</li></ol></article></div></section>
+              <aside class="panel-card"><div class="panel-title"><h2>Accesos directos</h2></div><div class="help-shortcuts"><button @click="goTo('lab')"><i class="fa-solid fa-pen-to-square"></i><span><strong>Nueva tarea</strong><small>Comience o continúe un borrador.</small></span></button><button @click="goTo('history')"><i class="fa-solid fa-clock-rotate-left"></i><span><strong>Historial</strong><small>Busque y reutilice resultados.</small></span></button><button @click="goTo('templates')"><i class="fa-solid fa-layer-group"></i><span><strong>Plantillas</strong><small>Prepare contenido frecuente.</small></span></button><button @click="goTo('settings')"><i class="fa-solid fa-sliders"></i><span><strong>Configuración</strong><small>Ajuste cuenta, vista y respaldo.</small></span></button></div></aside>
+            </div>
+            <section class="panel-card mt-4"><div class="panel-title"><h2>Preguntas frecuentes</h2></div><div class="faq-grid"><article v-for="item in helpQuestions" :key="item.question"><i class="fa-regular fa-circle-check"></i><div><strong>{{ item.question }}</strong><p>{{ item.answer }}</p></div></article></div></section>
           </template>
 
           <template v-if="page === 'experience'">

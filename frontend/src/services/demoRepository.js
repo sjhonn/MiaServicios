@@ -213,7 +213,7 @@ export const demoClearHistory = async () => {
 export const demoExportData = async () => {
   const session = demoSession();
   const history = read(historyKey, []).filter((item) => item.userId === session?.user.id);
-  return { version: 2, exportedAt: new Date().toISOString(), user: session?.user, history };
+  return { version: 3, exportedAt: new Date().toISOString(), user: session?.user, history };
 };
 
 export const demoImportData = async (payload) => {

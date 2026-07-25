@@ -7,6 +7,7 @@ import helmet from 'helmet';
 
 const app = express();
 const port = Number(process.env.PORT || 4000);
+const host = process.env.HOST || '0.0.0.0';
 const authServiceUrl = process.env.AUTH_SERVICE_URL || 'http://localhost:4001';
 const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:4002';
 const historyServiceUrl = process.env.HISTORY_SERVICE_URL || 'http://localhost:4003';
@@ -15,6 +16,7 @@ const allowedOrigins = String(process.env.CORS_ORIGIN || 'http://localhost:5173'
   .split(',')
   .map((value) => value.trim())
   .filter(Boolean);
+if (process.env.TRUST_PROXY === 'true') app.set('trust proxy', 1);
 const operationTypes = ['summarize', 'sentiment', 'keywords', 'classify', 'statistics', 'normalize'];
 
 class ServiceError extends Error {
@@ -119,6 +121,8 @@ app.use(cors({
 app.use(express.json({ limit: '64kb' }));
 app.use('/api', rateLimit({ windowMs: 60_000, limit: 150, standardHeaders: true, legacyHeaders: false }));
 
+app.get('/', (request, response) => response.json({ service: 'MiaServicios', status: 'ok' }));
+
 app.get('/health', asyncRoute(async (request, response) => {
   const checks = await Promise.all([
     probe('auth', `${authServiceUrl}/health`),
@@ -131,7 +135,7 @@ app.get('/health', asyncRoute(async (request, response) => {
   response.status(healthy ? 200 : 503).json({
     service: 'api-gateway',
     status: healthy ? 'ok' : 'degraded',
-    version: '2.0',
+    release: '3.0.0',
     requestId: request.requestId,
     services
   });
@@ -200,6 +204,10 @@ app.use((error, request, response, next) => {
   return response.status(500).json({ message: 'No fue posible completar la solicitud.', requestId: request.requestId });
 });
 
-app.listen(port, () => {
-  console.log(`api-gateway activo en http://localhost:${port}`);
+const server = app.listen(port, host, () => {
+  console.log(`api-gateway activo en http://${host}:${port}`);
 });
+
+const shutdown = () => server.close(() => process.exit(0));
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);

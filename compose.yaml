@@ -1,0 +1,103 @@
+# Levanta MiaServicios con interfaz y servicios conectados.
+services:
+  auth-service:
+    build: ./services/auth-service
+    environment:
+      PORT: 4001
+      HOST: 0.0.0.0
+      JWT_SECRET: ${JWT_SECRET:-change-this-secret-with-at-least-32-characters}
+      DATABASE_FILE: /app/data/auth.db
+    volumes:
+      - auth-data:/app/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4001/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 20s
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 15s
+
+  ai-service:
+    build: ./services/ai-service
+    environment:
+      PORT: 4002
+      HOST: 0.0.0.0
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4002/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 15s
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 15s
+
+  history-service:
+    build: ./services/history-service
+    environment:
+      PORT: 4003
+      HOST: 0.0.0.0
+      SERVICE_KEY: ${SERVICE_KEY:-mia-internal-service-key}
+      DATABASE_FILE: /app/data/history.db
+    volumes:
+      - history-data:/app/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4003/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 20s
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 15s
+
+  api-gateway:
+    build: ./services/api-gateway
+    environment:
+      PORT: 4000
+      HOST: 0.0.0.0
+      TRUST_PROXY: "true"
+      AUTH_SERVICE_URL: http://auth-service:4001
+      AI_SERVICE_URL: http://ai-service:4002
+      HISTORY_SERVICE_URL: http://history-service:4003
+      SERVICE_KEY: ${SERVICE_KEY:-mia-internal-service-key}
+      CORS_ORIGIN: "*"
+    depends_on:
+      auth-service:
+        condition: service_healthy
+      ai-service:
+        condition: service_healthy
+      history-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 15s
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    ports:
+      - "8080:80"
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  auth-data:
+  history-data:

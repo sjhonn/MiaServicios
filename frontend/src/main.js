@@ -1,4 +1,4 @@
-// Inicializa Vue, las rutas y los iconos SVG de la interfaz.
+// Inicializa MiaServicios y resuelve el entorno antes de mostrar la interfaz.
 import { createApp } from 'vue';
 import { createPinia } from 'pinia';
 import '@fortawesome/fontawesome-free/js/all.js';
@@ -6,6 +6,11 @@ import 'bootstrap/dist/css/bootstrap.min.css';
 import './assets/theme.css';
 import App from './App.vue';
 import router from './router/index.js';
+import { platformApi } from './services/platformApi.js';
+import { preferences } from './services/preferences.js';
+
+preferences.apply();
+await platformApi.initialize();
 
 const app = createApp(App);
 app.use(createPinia());

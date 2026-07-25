@@ -8,6 +8,7 @@ import HistoryView from '../views/HistoryView.vue';
 import TemplatesView from '../views/TemplatesView.vue';
 import SettingsView from '../views/SettingsView.vue';
 import ArchitectureView from '../views/ArchitectureView.vue';
+import HelpView from '../views/HelpView.vue';
 import NotFoundView from '../views/NotFoundView.vue';
 
 const router = createRouter({
@@ -15,11 +16,12 @@ const router = createRouter({
   routes: [
     { path: '/login', name: 'login', component: LoginView, meta: { guestOnly: true, title: 'Acceso' } },
     { path: '/', name: 'dashboard', component: DashboardView, meta: { requiresAuth: true, title: 'Panel general' } },
-    { path: '/laboratorio', name: 'text-lab', component: TextLabView, meta: { requiresAuth: true, title: 'Herramientas' } },
+    { path: '/laboratorio', name: 'text-lab', component: TextLabView, meta: { requiresAuth: true, title: 'Espacio de trabajo' } },
     { path: '/historial', name: 'history', component: HistoryView, meta: { requiresAuth: true, title: 'Historial' } },
     { path: '/plantillas', name: 'templates', component: TemplatesView, meta: { requiresAuth: true, title: 'Plantillas' } },
     { path: '/configuracion', name: 'settings', component: SettingsView, meta: { requiresAuth: true, title: 'Configuracion' } },
     { path: '/experiencia', name: 'architecture', component: ArchitectureView, meta: { requiresAuth: true, title: 'Experiencia' } },
+    { path: '/ayuda', name: 'help', component: HelpView, meta: { requiresAuth: true, title: 'Ayuda' } },
     { path: '/arquitectura', redirect: '/experiencia' },
     { path: '/:pathMatch(.*)*', name: 'not-found', component: NotFoundView, meta: { title: 'Pagina no encontrada' } }
   ],

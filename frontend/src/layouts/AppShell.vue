@@ -10,11 +10,12 @@ const auth = useAuthStore();
 const sidebarOpen = ref(false);
 const links = [
   { name: 'dashboard', label: 'Panel general', icon: 'fa-solid fa-chart-line' },
-  { name: 'text-lab', label: 'Herramientas', icon: 'fa-solid fa-wand-magic-sparkles' },
+  { name: 'text-lab', label: 'Espacio de trabajo', icon: 'fa-solid fa-wand-magic-sparkles' },
   { name: 'history', label: 'Historial', icon: 'fa-solid fa-clock-rotate-left' },
   { name: 'templates', label: 'Plantillas', icon: 'fa-solid fa-layer-group' },
   { name: 'settings', label: 'Configuración', icon: 'fa-solid fa-sliders' },
-  { name: 'architecture', label: 'Experiencia', icon: 'fa-solid fa-compass' }
+  { name: 'architecture', label: 'Experiencia', icon: 'fa-solid fa-compass' },
+  { name: 'help', label: 'Ayuda', icon: 'fa-solid fa-circle-question' }
 ];
 
 watch(() => route.fullPath, () => {

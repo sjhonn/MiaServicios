@@ -4,7 +4,7 @@ import { onMounted, ref } from 'vue';
 import AppShell from '../layouts/AppShell.vue';
 import { useNotifier } from '../composables/useNotifier.js';
 
-const STORAGE_KEY = 'mia_experience_image_v29';
+const STORAGE_KEY = 'mia_experience_image';
 const LEGACY_STORAGE_KEY = 'mia_architecture_image_v25';
 const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'];
