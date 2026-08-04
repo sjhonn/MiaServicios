@@ -1,100 +1,135 @@
 # MiaServicios
 
-MiaServicios es una plataforma de trabajo para resumir, clasificar, limpiar y revisar contenido. Incluye autenticación, historial, plantillas, respaldos, preferencias visuales y una versión publicada que funciona directamente desde el navegador.
+MiaServicios es una plataforma web para analizar, organizar, limpiar y reutilizar contenido. Funciona en desarrollo local, en Docker y como publicación estática mediante la carpeta `docs`.
+
+La interfaz muestra únicamente la marca **MiaServicios**. La información técnica y las versiones se concentran en `Configuración > Sistemas y versiones`.
 
 ## Funciones principales
 
-- Espacio de trabajo con guardado automático de borradores.
-- Importación de archivos TXT de hasta 1 MB.
-- Resumen, sentimiento, palabras clave, clasificación, estadísticas y limpieza.
-- Historial con búsqueda, filtros, paginación y exportación.
-- Plantillas incluidas y personalizadas.
-- Respaldo e importación de datos.
-- Preferencias de densidad, contraste y movimiento.
-- Guía de uso y recorrido visual para el usuario.
-- Funcionamiento automático en navegador o con servicios conectados.
-- Interfaz responsive para móvil, tablet y escritorio.
-- Publicación preparada en la carpeta `docs`.
+- Resumen de contenido por cantidad de oraciones.
+- Análisis de sentimiento.
+- Extracción de palabras clave.
+- Clasificación temática.
+- Estadísticas de lectura y estructura.
+- Limpieza y normalización de texto.
+- Importación de archivos TXT mediante selección o arrastre.
+- Guardado automático y recuperación de borradores.
+- Comparación entre contenido original y resultado.
+- Exportación en TXT, JSON, PNG, JPG, WEBP e impresión en PDF.
+- Historial con búsqueda, filtros, favoritos, detalle, eliminación y restauración.
+- Plantillas reutilizables.
+- Perfil, cambio de contraseña, respaldo e importación de información.
+- Preferencias de contraste, tamaño de texto, densidad y reducción de movimiento.
+- Renovación automática de sesión y recuperación controlada cuando el acceso vence.
+- Funcionamiento en navegador cuando los servicios no están disponibles.
+- Instalación como aplicación web y disponibilidad sin conexión después de la primera carga.
+- Diseño responsive para móvil, tablet y escritorio.
+
+## Estructura
+
+El código fuente se organiza en tres carpetas principales:
+
+```text
+MiaServicios/
+├── backend/
+│   ├── api-gateway/
+│   ├── auth-service/
+│   ├── ai-service/
+│   ├── history-service/
+│   ├── tests/
+│   └── tools/
+├── frontend/
+│   ├── deploy/
+│   ├── public/
+│   └── src/
+├── docs/
+├── compose.yaml
+├── package.json
+└── README.md
+```
+
+`README.md` es el único archivo Markdown del proyecto. Para ver únicamente `backend`, `frontend` y `docs` en Visual Studio Code, abra el archivo `MiaServicios.code-workspace`.
 
 ## Requisitos
 
 - Node.js 20.18 o superior.
 - npm 10 o superior.
-- Docker es opcional.
+- Docker Desktop únicamente para la ejecución con contenedores.
 
-## Inicio local completo
+## Instalación local
+
+Desde la raíz del proyecto:
 
 ```bash
 npm install
+npm run env:init
 npm run dev
 ```
 
-Direcciones:
+Abra:
 
 ```text
-Interfaz:        http://localhost:5173
-API Gateway:     http://localhost:4000
-Autenticación:   http://localhost:4001
-Procesamiento:   http://localhost:4002
-Historial:       http://localhost:4003
+http://localhost:5173
 ```
 
-Acceso inicial:
+Servicios locales:
+
+```text
+Interfaz:       http://localhost:5173
+API principal:  http://localhost:4000
+Acceso:         http://localhost:4001
+Procesamiento:  http://localhost:4002
+Historial:      http://localhost:4003
+```
+
+Credenciales iniciales:
 
 ```text
 Correo: demo@mia.local
 Contraseña: demo12345
 ```
 
-## Validar la versión publicada
-
-La carpeta `docs` puede revisarse sin instalar dependencias:
+`npm run env:init` crea claves aleatorias seguras en `.env`. Si el archivo ya existe, no se reemplaza. Para regenerarlo de forma intencional:
 
 ```bash
-npm run serve:docs
+npm run env:init -- --force
 ```
 
-Abra:
+## Validación
 
-```text
-http://127.0.0.1:8080
-```
-
-## Compilar para producción
+Ejecute todas las comprobaciones antes de publicar:
 
 ```bash
-npm install
 npm run validate
 ```
 
-El frontend se genera directamente en:
+La validación comprueba:
 
-```text
-docs/
-```
+- Estructura principal con `backend`, `frontend` y `docs`.
+- Existencia de un único archivo Markdown: `README.md`.
+- Sintaxis de servicios y herramientas.
+- Pruebas del procesamiento de contenido.
+- Pruebas de sesión.
+- Compilación de producción del frontend.
 
-## Publicar en GitHub Pages
+## Producción con Docker
 
-El repositorio incluye el flujo `.github/workflows/pages.yml`. Al enviar cambios a `main`, GitHub Actions instala dependencias, ejecuta las pruebas, compila el frontend y publica `docs`.
-
-También puede utilizar la publicación clásica:
-
-```text
-Settings > Pages > Deploy from a branch > main > /docs
-```
-
-## Ejecutar con Docker
-
-Copie las variables de ejemplo y ajuste sus valores:
+Genere el archivo `.env` una sola vez:
 
 ```bash
-cp .env.compose.example .env
+npm run env:init
 ```
 
-Luego ejecute:
+Valide la configuración:
 
 ```bash
-docker compose up --build
+npm run docker:config
+```
+
+Construya e inicie MiaServicios:
+
+```bash
+npm run docker:up
 ```
 
 Abra:
@@ -103,54 +138,107 @@ Abra:
 http://localhost:8080
 ```
 
-En este modo, la interfaz se conecta automáticamente con los servicios internos mediante el mismo dominio.
-
-## Configuración del funcionamiento
-
-La interfaz utiliza `frontend/public/runtime-config.js` para decidir cómo trabajar:
-
-```js
-window.MiaServiciosConfig = {
-  mode: 'auto',
-  apiUrl: '',
-  requestTimeout: 8000
-};
-```
-
-Valores disponibles:
-
-- `auto`: intenta utilizar servicios conectados y, si no están disponibles, continúa en el navegador.
-- `browser`: utiliza almacenamiento y procesamiento del navegador.
-- `services`: exige conexión con el API Gateway.
-
-La dirección también puede cambiarse desde `Configuración > Funcionamiento`.
-
-## Comandos
+Consulte el estado:
 
 ```bash
-npm run dev
-npm run dev:web
-npm run dev:backend
-npm run build
-npm run serve:docs
-npm run start
-npm run start:local
-npm run check
-npm test
-npm run validate
+npm run docker:status
 ```
 
-## Persistencia
+Detenga únicamente MiaServicios, sin eliminar sus volúmenes:
 
-El modo navegador utiliza almacenamiento local. El modo conectado utiliza SQLite en:
+```bash
+npm run docker:down
+```
+
+El proyecto Compose usa el nombre fijo `miaservicios`, por lo que no modifica otros proyectos como `login-admin`. No utilice `docker compose down -v`, `docker volume prune` ni `docker system prune` si desea conservar bases de datos y recursos existentes.
+
+Para cambiar el puerto publicado, modifique `WEB_PORT` dentro de `.env`:
 
 ```text
-services/auth-service/data/auth.db
-services/history-service/data/history.db
+WEB_PORT=8081
 ```
 
-Los volúmenes de Docker conservan estos datos entre reinicios.
+## Publicación en GitHub Pages
 
-## Marca visible
+Genere la carpeta pública:
 
-La interfaz utiliza únicamente el nombre `MiaServicios`. La numeración técnica se mantiene dentro de archivos de mantenimiento y en la sección `Sistemas y versiones` de Configuración.
+```bash
+npm run build:pages
+```
+
+El resultado se guarda en `docs`. Suba el proyecto al repositorio y configure GitHub Pages con:
+
+```text
+Branch: main
+Folder: /docs
+```
+
+En GitHub Pages, MiaServicios funciona en modo navegador y conserva la información mediante el almacenamiento local. No requiere servidor, base de datos externa ni servicio de pago.
+
+## Comandos disponibles
+
+```text
+npm run dev             Inicia frontend y backend para desarrollo.
+npm run dev:frontend    Inicia únicamente la interfaz.
+npm run dev:backend     Inicia únicamente los servicios.
+npm run build           Genera la carpeta docs.
+npm run preview         Previsualiza la compilación.
+npm run serve:docs      Sirve docs en http://127.0.0.1:8080.
+npm run start:local     Inicia servicios y la publicación de docs.
+npm run env:init        Crea el archivo .env con secretos aleatorios.
+npm run check           Revisa estructura y sintaxis.
+npm test                Ejecuta pruebas funcionales internas.
+npm run validate        Ejecuta revisión, pruebas y compilación.
+npm run docker:up       Construye e inicia los contenedores.
+npm run docker:status   Muestra el estado de los contenedores.
+npm run docker:down     Detiene MiaServicios sin borrar volúmenes.
+```
+
+## Datos persistentes
+
+En ejecución local, las bases se crean dentro de:
+
+```text
+backend/auth-service/data/
+backend/history-service/data/
+```
+
+En Docker, los datos se conservan mediante los volúmenes del proyecto `miaservicios`.
+
+## Seguridad operativa
+
+- No suba el archivo `.env` al repositorio.
+- Cambie la contraseña inicial después del primer acceso en un entorno compartido.
+- Mantenga `JWT_SECRET` y `SERVICE_KEY` con valores aleatorios independientes.
+- Publique la aplicación detrás de HTTPS cuando se exponga fuera del equipo local.
+- Conserve copias de seguridad antes de eliminar historial o volúmenes.
+
+## Solución rápida de problemas
+
+### La sesión aparece vencida
+
+Cierre sesión y vuelva a ingresar. MiaServicios intenta renovar el acceso automáticamente y elimina sesiones incompatibles cuando ya no pueden recuperarse.
+
+### Docker no inicia por variables faltantes
+
+```bash
+npm run env:init
+npm run docker:config
+npm run docker:up
+```
+
+### El navegador muestra una compilación anterior
+
+Recargue con `Ctrl + F5`. Si la aplicación informa que existe una actualización, utilice `Actualizar ahora`.
+
+### El puerto 8080 está ocupado
+
+Cambie `WEB_PORT` en `.env` y vuelva a ejecutar:
+
+```bash
+npm run docker:up
+```
+
+## Licencia
+
+El proyecto incluye un archivo `LICENSE` con los términos aplicables.

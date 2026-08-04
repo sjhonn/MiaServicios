@@ -3,6 +3,7 @@
 import { computed, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth.js';
+import { platformApi } from '../services/platformApi.js';
 
 const router = useRouter();
 const auth = useAuthStore();
@@ -10,12 +11,14 @@ const baseUrl = import.meta.env.BASE_URL;
 const mode = ref('login');
 const showPassword = ref(false);
 const form = reactive({ name: '', email: 'demo@mia.local', password: 'demo12345' });
-const heading = computed(() => mode.value === 'login' ? 'Acceso a la plataforma' : 'Crear una cuenta');
+const heading = computed(() => mode.value === 'login' ? 'Acceso a MiaServicios' : 'Crear una cuenta');
 const submitLabel = computed(() => mode.value === 'login' ? 'Ingresar' : 'Registrar cuenta');
+const runtimeLabel = computed(() => platformApi.isDemo ? 'Disponible en este navegador' : 'Conectado al sistema');
 
 const changeMode = (value) => {
   mode.value = value;
   auth.error = '';
+  auth.clearNotice();
   form.name = '';
 };
 
@@ -52,11 +55,16 @@ const submit = async () => {
           </div>
         </div>
 
+        <div class="auth-runtime"><span class="status-dot"></span>{{ runtimeLabel }}</div>
+
         <div class="auth-tabs" role="tablist">
           <button type="button" class="auth-tab" :class="{ 'is-active': mode === 'login' }" @click="changeMode('login')">Iniciar sesión</button>
           <button type="button" class="auth-tab" :class="{ 'is-active': mode === 'register' }" @click="changeMode('register')">Registrarse</button>
         </div>
 
+        <div v-if="auth.notice" class="alert alert-info-custom" role="status">
+          <i class="fa-solid fa-circle-info mr-2"></i>{{ auth.notice }}
+        </div>
         <div v-if="auth.error" class="alert alert-danger-custom" role="alert">{{ auth.error }}</div>
 
         <form @submit.prevent="submit">

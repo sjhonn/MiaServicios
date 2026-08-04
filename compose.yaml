@@ -1,12 +1,30 @@
-# Levanta MiaServicios con interfaz y servicios conectados.
+# Ejecuta MiaServicios de forma aislada para producción local.
+name: miaservicios
+
+x-service-defaults: &service-defaults
+  init: true
+  restart: unless-stopped
+  stop_grace_period: 15s
+  networks:
+    - internal
+  logging:
+    driver: local
+    options:
+      max-size: "10m"
+      max-file: "3"
+
 services:
   auth-service:
-    build: ./services/auth-service
+    <<: *service-defaults
+    build: ./backend/auth-service
     environment:
+      NODE_ENV: production
       PORT: 4001
       HOST: 0.0.0.0
-      JWT_SECRET: ${JWT_SECRET:-change-this-secret-with-at-least-32-characters}
+      JWT_SECRET: ${JWT_SECRET:?Defina JWT_SECRET en el archivo .env}
       DATABASE_FILE: /app/data/auth.db
+      ACCESS_TOKEN_TTL_SECONDS: ${ACCESS_TOKEN_TTL_SECONDS:-900}
+      REFRESH_TOKEN_TTL_DAYS: ${REFRESH_TOKEN_TTL_DAYS:-7}
     volumes:
       - auth-data:/app/data
     healthcheck:
@@ -15,13 +33,14 @@ services:
       timeout: 3s
       retries: 6
       start_period: 20s
-    init: true
-    restart: unless-stopped
-    stop_grace_period: 15s
+    mem_limit: 256m
+    cpus: 0.50
 
   ai-service:
-    build: ./services/ai-service
+    <<: *service-defaults
+    build: ./backend/ai-service
     environment:
+      NODE_ENV: production
       PORT: 4002
       HOST: 0.0.0.0
     healthcheck:
@@ -30,16 +49,17 @@ services:
       timeout: 3s
       retries: 6
       start_period: 15s
-    init: true
-    restart: unless-stopped
-    stop_grace_period: 15s
+    mem_limit: 256m
+    cpus: 0.50
 
   history-service:
-    build: ./services/history-service
+    <<: *service-defaults
+    build: ./backend/history-service
     environment:
+      NODE_ENV: production
       PORT: 4003
       HOST: 0.0.0.0
-      SERVICE_KEY: ${SERVICE_KEY:-mia-internal-service-key}
+      SERVICE_KEY: ${SERVICE_KEY:?Defina SERVICE_KEY en el archivo .env}
       DATABASE_FILE: /app/data/history.db
     volumes:
       - history-data:/app/data
@@ -49,21 +69,22 @@ services:
       timeout: 3s
       retries: 6
       start_period: 20s
-    init: true
-    restart: unless-stopped
-    stop_grace_period: 15s
+    mem_limit: 256m
+    cpus: 0.50
 
   api-gateway:
-    build: ./services/api-gateway
+    <<: *service-defaults
+    build: ./backend/api-gateway
     environment:
+      NODE_ENV: production
       PORT: 4000
       HOST: 0.0.0.0
       TRUST_PROXY: "true"
       AUTH_SERVICE_URL: http://auth-service:4001
       AI_SERVICE_URL: http://ai-service:4002
       HISTORY_SERVICE_URL: http://history-service:4003
-      SERVICE_KEY: ${SERVICE_KEY:-mia-internal-service-key}
-      CORS_ORIGIN: "*"
+      SERVICE_KEY: ${SERVICE_KEY:?Defina SERVICE_KEY en el archivo .env}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8080}
     depends_on:
       auth-service:
         condition: service_healthy
@@ -77,16 +98,15 @@ services:
       timeout: 5s
       retries: 6
       start_period: 15s
-    init: true
-    restart: unless-stopped
-    stop_grace_period: 15s
+    mem_limit: 256m
+    cpus: 0.50
 
   web:
     build:
       context: .
-      dockerfile: Dockerfile.web
+      dockerfile: frontend/Dockerfile
     ports:
-      - "8080:80"
+      - "${WEB_PORT:-8080}:80"
     depends_on:
       api-gateway:
         condition: service_healthy
@@ -97,6 +117,21 @@ services:
       retries: 5
       start_period: 10s
     restart: unless-stopped
+    networks:
+      - internal
+      - public
+    logging:
+      driver: local
+      options:
+        max-size: "10m"
+        max-file: "3"
+    mem_limit: 128m
+    cpus: 0.25
+
+networks:
+  internal:
+    internal: true
+  public:
 
 volumes:
   auth-data:

@@ -1,6 +1,7 @@
 node_modules
 .git
-.github
 *.zip
 *.log
-services/*/data/*.db
+.env
+backend/*/data/*.db*
+docs

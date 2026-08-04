@@ -1,36 +1,20 @@
+<!-- Carga la interfaz principal de MiaServicios. -->
 <!doctype html>
 <html lang="es">
   <head>
-    <meta charset="utf-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1, shrink-to-fit=no"
-    />
-    <meta name="theme-color" content="#101317" />
-    <meta
-      name="description"
-      content="MiaServicios permite analizar, organizar y reutilizar contenido desde una experiencia clara y adaptable."
-    />
-    <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="icon" href="./icons/icon-192.png" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#101317">
+    <meta name="color-scheme" content="dark">
+    <meta name="description" content="MiaServicios permite analizar, organizar y reutilizar contenido desde una experiencia clara y accesible.">
+    <link rel="manifest" href="./manifest.webmanifest">
+    <link rel="icon" href="./icons/icon-192.png">
     <title>MiaServicios</title>
-    <link
-      rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css"
-    />
-    <link rel="stylesheet" href="./theme.css" />
+    <script type="module" crossorigin src="./assets/index-C64ucwPL.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-2uo52CsK.css">
   </head>
   <body>
+    <a class="skip-link" href="#main-content">Saltar al contenido principal</a>
     <div id="app"></div>
-    <script src="./runtime-config.js"></script>
-    <script src="https://unpkg.com/vue@3.5.13/dist/vue.global.prod.js"></script>
-    <script src="./vendor/fontawesome/all.min.js"></script>
-    <script src="./app.js"></script>
-    <script>
-      if ("serviceWorker" in navigator)
-        window.addEventListener("load", () =>
-          navigator.serviceWorker.register("./service-worker.js"),
-        );
-    </script>
   </body>
 </html>

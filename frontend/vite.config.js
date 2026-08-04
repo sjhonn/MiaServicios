@@ -1,4 +1,4 @@
-// Configura Vite y genera la aplicacion en docs.
+// Configura el desarrollo y la salida publicada de MiaServicios.
 import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
 
@@ -9,10 +9,17 @@ export default defineConfig({
     outDir: '../docs',
     emptyOutDir: true,
     sourcemap: false,
-    chunkSizeWarningLimit: 800
+    target: 'es2020',
+    chunkSizeWarningLimit: 850
   },
   server: {
+    host: '0.0.0.0',
     port: 5173,
+    strictPort: true
+  },
+  preview: {
+    host: '0.0.0.0',
+    port: 4173,
     strictPort: true
   }
 });

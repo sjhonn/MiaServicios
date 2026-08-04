@@ -1,10 +1,9 @@
-// Mantiene disponible la interfaz y actualiza los recursos publicados.
-const cacheName = 'miaservicios-shell-20260725-2';
+// Mantiene disponible la interfaz y reemplaza recursos publicados anteriores.
+const cacheName = 'miaservicios-shell-20260804-1';
 const appShell = [
   './',
   './index.html',
   './manifest.webmanifest',
-  './runtime-config.js',
   './icons/icon-192.png',
   './icons/icon-512.png'
 ];

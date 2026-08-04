@@ -1,4 +1,4 @@
-<!-- Gestiona el espacio de trabajo y sus resultados. -->
+<!-- Gestiona el espacio de trabajo, comparacion y exportacion de resultados. -->
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import AppShell from '../layouts/AppShell.vue';
@@ -34,6 +34,7 @@ const examples = [
 
 const selected = ref('summarize');
 const executedType = ref('');
+const executedInput = ref('');
 const text = ref('');
 const sentences = ref(3);
 const keywordLimit = ref(8);
@@ -44,7 +45,10 @@ const response = ref(null);
 const copied = ref(false);
 const fileInput = ref(null);
 const focusMode = ref(false);
+const comparisonMode = ref(false);
+const dragActive = ref(false);
 const draftSavedAt = ref('');
+const favoriteSaved = ref(false);
 let saveTimer;
 
 const selectedOperation = computed(() => operations.find((item) => item.id === selected.value));
@@ -60,7 +64,11 @@ const textMetrics = computed(() => {
   };
 });
 const validText = computed(() => text.value.trim().length >= 20 && text.value.length <= 20000);
-const draftStatus = computed(() => draftSavedAt.value ? `Borrador guardado a las ${new Date(draftSavedAt.value).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })}` : 'El borrador se guarda automáticamente');
+const executedOperation = computed(() => operations.find((item) => item.id === executedType.value));
+const canCompare = computed(() => Boolean(response.value && ['summarize', 'normalize'].includes(executedType.value)));
+const draftStatus = computed(() => draftSavedAt.value
+  ? `Borrador guardado a las ${new Date(draftSavedAt.value).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })}`
+  : 'El borrador se guarda automáticamente');
 
 const payload = () => ({
   text: text.value,
@@ -98,36 +106,55 @@ const restoreDraft = () => {
   }
 };
 
-const clear = () => {
-  text.value = '';
+const resetResult = () => {
   response.value = null;
   error.value = '';
   executedType.value = '';
+  executedInput.value = '';
+  comparisonMode.value = false;
+  favoriteSaved.value = false;
+};
+
+const clear = () => {
+  text.value = '';
+  resetResult();
   localStorage.removeItem(DRAFT_KEY);
   draftSavedAt.value = '';
 };
 
 const loadExample = (value) => {
   text.value = value;
-  response.value = null;
-  error.value = '';
+  resetResult();
+};
+
+const loadTextFile = async (file) => {
+  if (!file) return;
+  if (file.size > MAX_FILE_BYTES) throw new Error('El archivo supera el límite de 1 MB.');
+  if (!file.name.toLowerCase().endsWith('.txt') && file.type !== 'text/plain') {
+    throw new Error('Seleccione un archivo de texto en formato TXT.');
+  }
+  text.value = (await file.text()).slice(0, 20000);
+  resetResult();
+  push('Contenido importado.', 'success');
 };
 
 const importText = async (event) => {
   const file = event.target.files?.[0];
   event.target.value = '';
-  if (!file) return;
-  if (file.size > MAX_FILE_BYTES) {
-    push('El archivo supera el límite de 1 MB.', 'danger');
-    return;
+  try {
+    await loadTextFile(file);
+  } catch (exception) {
+    push(exception.message, 'danger');
   }
-  if (!file.name.toLowerCase().endsWith('.txt') && file.type !== 'text/plain') {
-    push('Seleccione un archivo de texto en formato TXT.', 'danger');
-    return;
+};
+
+const dropText = async (event) => {
+  dragActive.value = false;
+  try {
+    await loadTextFile(event.dataTransfer?.files?.[0]);
+  } catch (exception) {
+    push(exception.message, 'danger');
   }
-  text.value = (await file.text()).slice(0, 20000);
-  response.value = null;
-  push('Contenido importado.', 'success');
 };
 
 const pasteContent = async () => {
@@ -135,7 +162,7 @@ const pasteContent = async () => {
     const value = await navigator.clipboard.readText();
     if (!value.trim()) throw new Error();
     text.value = value.slice(0, 20000);
-    response.value = null;
+    resetResult();
     push('Contenido pegado desde el portapapeles.', 'success');
   } catch {
     push('No fue posible leer el portapapeles. Pegue el contenido manualmente.', 'danger');
@@ -150,11 +177,19 @@ const submit = async () => {
   loading.value = true;
   error.value = '';
   response.value = null;
+  comparisonMode.value = false;
+  favoriteSaved.value = false;
   try {
-    response.value = await platformApi.runOperation(selected.value, payload());
+    const requestPayload = payload();
+    response.value = await platformApi.runOperation(selected.value, requestPayload);
     executedType.value = selected.value;
+    executedInput.value = requestPayload.text;
     saveDraft();
-    push('La tarea fue completada y guardada en el historial.', 'success');
+    if (response.value.historySaved === false) {
+      push(response.value.warning || 'El resultado fue generado, pero no se guardó en el historial.', 'info');
+    } else {
+      push('La tarea fue completada y guardada en el historial.', 'success');
+    }
   } catch (exception) {
     error.value = exception.message;
   } finally {
@@ -184,9 +219,103 @@ const copyResult = async () => {
 const exportResult = (format) => {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   if (format === 'json') {
-    downloadFile(`mia-${executedType.value}-${timestamp}.json`, JSON.stringify({ operation: executedType.value, input: text.value, ...response.value }, null, 2), 'application/json;charset=utf-8');
+    downloadFile(`miaservicios-${executedType.value}-${timestamp}.json`, JSON.stringify({ operation: executedType.value, input: executedInput.value, ...response.value }, null, 2), 'application/json;charset=utf-8');
   } else {
-    downloadFile(`mia-${executedType.value}-${timestamp}.txt`, resultText());
+    downloadFile(`miaservicios-${executedType.value}-${timestamp}.txt`, resultText());
+  }
+};
+
+const wrapCanvasLines = (context, value, maxWidth) => {
+  const lines = [];
+  String(value).split('\n').forEach((paragraph) => {
+    const words = paragraph.split(/\s+/).filter(Boolean);
+    if (!words.length) {
+      lines.push('');
+      return;
+    }
+    let line = words.shift();
+    words.forEach((word) => {
+      const test = `${line} ${word}`;
+      if (context.measureText(test).width <= maxWidth) line = test;
+      else {
+        lines.push(line);
+        line = word;
+      }
+    });
+    lines.push(line);
+  });
+  return lines.slice(0, 120);
+};
+
+const exportResultImage = (format) => {
+  const mime = format === 'jpg' ? 'image/jpeg' : `image/${format}`;
+  const extension = format === 'jpg' ? 'jpg' : format;
+  const measure = document.createElement('canvas').getContext('2d');
+  if (!measure) return;
+  measure.font = '28px Arial';
+  const lines = wrapCanvasLines(measure, resultText(), 1240);
+  const canvas = document.createElement('canvas');
+  canvas.width = 1400;
+  canvas.height = Math.max(720, 250 + lines.length * 40);
+  const context = canvas.getContext('2d');
+  if (!context) return;
+  context.fillStyle = '#0f1114';
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.fillStyle = '#45c7df';
+  context.font = '700 20px Arial';
+  context.fillText('MIASERVICIOS', 80, 80);
+  context.fillStyle = '#f4f6f8';
+  context.font = '700 42px Arial';
+  context.fillText(executedOperation.value?.label || 'Resultado', 80, 145);
+  context.fillStyle = '#9da6b1';
+  context.font = '22px Arial';
+  context.fillText(`Generado el ${new Date().toLocaleString('es-PE')}`, 80, 190);
+  context.fillStyle = '#171a1f';
+  context.fillRect(60, 220, 1280, canvas.height - 280);
+  context.fillStyle = '#edf1f5';
+  context.font = '28px Arial';
+  lines.forEach((line, index) => context.fillText(line, 90, 280 + index * 40));
+  canvas.toBlob((blob) => {
+    if (!blob) {
+      push('No fue posible generar la imagen.', 'danger');
+      return;
+    }
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `miaservicios-${executedType.value}-${Date.now()}.${extension}`;
+    link.click();
+    URL.revokeObjectURL(url);
+    push(`Resultado guardado en ${extension.toUpperCase()}.`, 'success');
+  }, mime, 0.92);
+};
+
+const printResult = () => {
+  const popup = window.open('', '_blank');
+  if (!popup) {
+    push('El navegador bloqueó la ventana de impresión.', 'danger');
+    return;
+  }
+  popup.opener = null;
+  const safe = resultText().replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[character]));
+  popup.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>MiaServicios</title><style>body{font-family:Arial,sans-serif;margin:48px;color:#15191e}h1{margin-bottom:8px}p{white-space:pre-wrap;line-height:1.6;border-top:1px solid #ddd;padding-top:24px}</style></head><body><h1>MiaServicios</h1><strong>${executedOperation.value?.label || 'Resultado'}</strong><p>${safe}</p></body></html>`);
+  popup.document.close();
+  popup.focus();
+  window.setTimeout(() => popup.print(), 250);
+};
+
+const saveFavorite = async () => {
+  const operationId = response.value?.operationId;
+  if (!operationId || response.value?.historySaved === false) {
+    push('Este resultado no está disponible en el historial.', 'danger');
+    return;
+  }
+  try {
+    await platformApi.setHistoryFavorite(operationId, true);
+    favoriteSaved.value = true;
+    push('Resultado agregado a favoritos.', 'success');
+  } catch (exception) {
+    push(exception.message, 'danger');
   }
 };
 
@@ -271,7 +400,10 @@ onBeforeUnmount(() => {
 
           <div class="form-group">
             <label for="text-input">Contenido</label>
-            <textarea id="text-input" v-model="text" class="form-control text-editor" rows="13" maxlength="20000" placeholder="Escriba, pegue o importe el contenido que desea revisar"></textarea>
+            <div class="text-drop-zone" :class="{ 'is-dragging': dragActive }" @dragenter.prevent="dragActive = true" @dragover.prevent="dragActive = true" @dragleave.prevent="dragActive = false" @drop.prevent="dropText">
+              <textarea id="text-input" v-model="text" class="form-control text-editor" rows="13" maxlength="20000" placeholder="Escriba, pegue, arrastre o importe el contenido que desea revisar"></textarea>
+              <div v-if="dragActive" class="text-drop-overlay"><i class="fa-solid fa-file-arrow-down"></i><strong>Suelte el archivo TXT</strong></div>
+            </div>
             <div class="editor-metrics">
               <span>{{ textMetrics.characters }} caracteres</span>
               <span>{{ textMetrics.words }} palabras</span>
@@ -313,15 +445,16 @@ onBeforeUnmount(() => {
         </section>
 
         <section class="panel-card result-panel">
-          <div class="panel-title">
+          <div class="panel-title result-panel-title">
             <div>
               <h2>Resultado</h2>
-              <div v-if="response" class="panel-subtitle">Listo para revisar, copiar o descargar.</div>
+              <div v-if="response" class="panel-subtitle">Listo para revisar, comparar, guardar o descargar.</div>
             </div>
-            <div v-if="response" class="btn-group">
+            <div v-if="response" class="result-actions">
+              <button v-if="canCompare" type="button" class="btn btn-outline-light btn-sm" :class="{ active: comparisonMode }" @click="comparisonMode = !comparisonMode"><i class="fa-solid fa-code-compare mr-2"></i>Comparar</button>
+              <button type="button" class="btn btn-outline-light btn-sm" :disabled="favoriteSaved" @click="saveFavorite"><i :class="favoriteSaved ? 'fa-solid fa-star' : 'fa-regular fa-star'" class="mr-2"></i>{{ favoriteSaved ? 'Favorito' : 'Guardar' }}</button>
               <button type="button" class="btn btn-outline-light btn-sm" @click="copyResult"><i class="fa-regular fa-copy mr-2"></i>{{ copied ? 'Copiado' : 'Copiar' }}</button>
-              <button type="button" class="btn btn-outline-light btn-sm" @click="exportResult('txt')">TXT</button>
-              <button type="button" class="btn btn-outline-light btn-sm" @click="exportResult('json')">JSON</button>
+              <button type="button" class="btn btn-outline-light btn-sm" @click="printResult"><i class="fa-solid fa-print mr-2"></i>Imprimir</button>
             </div>
           </div>
 
@@ -329,36 +462,53 @@ onBeforeUnmount(() => {
           <div v-else-if="!response" class="result-placeholder"><div><i class="fa-solid fa-file-lines"></i>El resultado aparecerá en este panel.</div></div>
 
           <template v-else>
-            <div v-if="executedType === 'summarize'" class="result-box">{{ response.result.summary }}</div>
-
-            <div v-else-if="executedType === 'sentiment'" class="result-metric">
-              <div><span>Resultado</span><strong>{{ response.result.label }}</strong></div>
-              <div><span>Puntaje</span><strong>{{ response.result.score }}</strong></div>
-              <div><span>Positivas</span><strong>{{ response.result.positiveMatches }}</strong></div>
-              <div><span>Negativas</span><strong>{{ response.result.negativeMatches }}</strong></div>
+            <div v-if="comparisonMode && canCompare" class="comparison-grid">
+              <article><span>Contenido original</span><div class="result-box result-box-pre">{{ executedInput }}</div></article>
+              <article><span>Resultado</span><div class="result-box result-box-pre">{{ resultText() }}</div></article>
             </div>
+            <template v-else>
+              <div v-if="executedType === 'summarize'" class="result-box">{{ response.result.summary }}</div>
 
-            <div v-else-if="executedType === 'keywords'" class="keyword-list">
-              <span v-for="keyword in response.result.keywords" :key="keyword.word" class="keyword-chip">{{ keyword.word }} <strong>{{ keyword.count }}</strong></span>
+              <div v-else-if="executedType === 'sentiment'" class="result-metric">
+                <div><span>Resultado</span><strong>{{ response.result.label }}</strong></div>
+                <div><span>Puntaje</span><strong>{{ response.result.score }}</strong></div>
+                <div><span>Positivas</span><strong>{{ response.result.positiveMatches }}</strong></div>
+                <div><span>Negativas</span><strong>{{ response.result.negativeMatches }}</strong></div>
+              </div>
+
+              <div v-else-if="executedType === 'keywords'" class="keyword-list">
+                <span v-for="keyword in response.result.keywords" :key="keyword.word" class="keyword-chip">{{ keyword.word }} <strong>{{ keyword.count }}</strong></span>
+              </div>
+
+              <div v-else-if="executedType === 'classify'" class="result-metric">
+                <div><span>Categoría</span><strong>{{ response.result.category.replace('_', ' ') }}</strong></div>
+                <div><span>Confianza</span><strong>{{ Math.round(response.result.confidence * 100) }}%</strong></div>
+              </div>
+
+              <div v-else-if="executedType === 'statistics'" class="result-metric result-metric-wide">
+                <div><span>Caracteres</span><strong>{{ response.result.characters }}</strong></div>
+                <div><span>Palabras</span><strong>{{ response.result.words }}</strong></div>
+                <div><span>Palabras únicas</span><strong>{{ response.result.uniqueWords }}</strong></div>
+                <div><span>Oraciones</span><strong>{{ response.result.sentences }}</strong></div>
+                <div><span>Párrafos</span><strong>{{ response.result.paragraphs }}</strong></div>
+                <div><span>Densidad léxica</span><strong>{{ response.result.lexicalDensity }}</strong></div>
+                <div><span>Promedio por palabra</span><strong>{{ response.result.averageWordLength }}</strong></div>
+                <div><span>Lectura estimada</span><strong>{{ response.result.estimatedReadingMinutes }} min</strong></div>
+              </div>
+
+              <div v-else-if="executedType === 'normalize'" class="result-box result-box-pre">{{ response.result.text }}</div>
+            </template>
+
+            <div class="result-export-bar">
+              <span>Descargar resultado</span>
+              <div class="btn-group">
+                <button type="button" class="btn btn-outline-light btn-sm" @click="exportResult('txt')">TXT</button>
+                <button type="button" class="btn btn-outline-light btn-sm" @click="exportResult('json')">JSON</button>
+                <button type="button" class="btn btn-outline-light btn-sm" @click="exportResultImage('png')">PNG</button>
+                <button type="button" class="btn btn-outline-light btn-sm" @click="exportResultImage('jpg')">JPG</button>
+                <button type="button" class="btn btn-outline-light btn-sm" @click="exportResultImage('webp')">WEBP</button>
+              </div>
             </div>
-
-            <div v-else-if="executedType === 'classify'" class="result-metric">
-              <div><span>Categoría</span><strong>{{ response.result.category.replace('_', ' ') }}</strong></div>
-              <div><span>Confianza</span><strong>{{ Math.round(response.result.confidence * 100) }}%</strong></div>
-            </div>
-
-            <div v-else-if="executedType === 'statistics'" class="result-metric result-metric-wide">
-              <div><span>Caracteres</span><strong>{{ response.result.characters }}</strong></div>
-              <div><span>Palabras</span><strong>{{ response.result.words }}</strong></div>
-              <div><span>Palabras únicas</span><strong>{{ response.result.uniqueWords }}</strong></div>
-              <div><span>Oraciones</span><strong>{{ response.result.sentences }}</strong></div>
-              <div><span>Párrafos</span><strong>{{ response.result.paragraphs }}</strong></div>
-              <div><span>Densidad léxica</span><strong>{{ response.result.lexicalDensity }}</strong></div>
-              <div><span>Promedio por palabra</span><strong>{{ response.result.averageWordLength }}</strong></div>
-              <div><span>Lectura estimada</span><strong>{{ response.result.estimatedReadingMinutes }} min</strong></div>
-            </div>
-
-            <div v-else-if="executedType === 'normalize'" class="result-box result-box-pre">{{ response.result.text }}</div>
 
             <div class="result-footer">
               <span>Resultado generado por MiaServicios</span>

@@ -1,27 +1,33 @@
 {
   "name": "miaservicios-platform",
-  "version": "3.0.0",
+  "version": "3.2.0",
   "private": true,
   "workspaces": [
     "frontend",
-    "services/*"
+    "backend/api-gateway",
+    "backend/auth-service",
+    "backend/ai-service",
+    "backend/history-service"
   ],
   "scripts": {
-    "dev": "concurrently --kill-others-on-fail --names gateway,auth,ai,history,web \"npm run dev --workspace=@miaservicios/api-gateway\" \"npm run dev --workspace=@miaservicios/auth-service\" \"npm run dev --workspace=@miaservicios/ai-service\" \"npm run dev --workspace=@miaservicios/history-service\" \"npm run dev --workspace=@miaservicios/frontend\"",
-    "dev:web": "npm run dev --workspace=@miaservicios/frontend",
-    "dev:backend": "concurrently --kill-others-on-fail --names gateway,auth,ai,history \"npm run dev --workspace=@miaservicios/api-gateway\" \"npm run dev --workspace=@miaservicios/auth-service\" \"npm run dev --workspace=@miaservicios/ai-service\" \"npm run dev --workspace=@miaservicios/history-service\"",
+    "dev": "node backend/tools/run-processes.mjs dev all",
+    "dev:frontend": "npm run dev --workspace=@miaservicios/frontend",
+    "dev:backend": "node backend/tools/run-processes.mjs dev backend",
     "build": "npm run build --workspace=@miaservicios/frontend",
-    "build:pages": "npm run build && node --check docs/app.js",
+    "build:pages": "npm run build",
     "preview": "npm run preview --workspace=@miaservicios/frontend",
-    "serve:docs": "node tools/serve-docs.mjs",
-    "start": "concurrently --kill-others-on-fail --names gateway,auth,ai,history \"npm run start --workspace=@miaservicios/api-gateway\" \"npm run start --workspace=@miaservicios/auth-service\" \"npm run start --workspace=@miaservicios/ai-service\" \"npm run start --workspace=@miaservicios/history-service\"",
-    "start:local": "concurrently --kill-others-on-fail --names services,web \"npm run start\" \"npm run serve:docs\"",
-    "check": "npm run check --workspaces --if-present && node --check docs/app.js && node --check tools/serve-docs.mjs",
-    "test": "node tests/nlp-smoke.mjs",
-    "validate": "npm run check && npm test && npm run build"
-  },
-  "devDependencies": {
-    "concurrently": "^9.1.2"
+    "serve:docs": "node backend/tools/serve-docs.mjs",
+    "start": "node backend/tools/run-processes.mjs start backend",
+    "start:local": "node backend/tools/run-processes.mjs start local",
+    "check": "npm run check:structure && npm run check --workspaces --if-present && node --check backend/tools/run-processes.mjs && node --check backend/tools/serve-docs.mjs && node --check backend/tools/create-env.mjs",
+    "test": "node backend/tests/nlp-smoke.mjs && node backend/tests/session-smoke.mjs",
+    "validate": "npm run check && npm test && npm run build",
+    "docker:config": "docker compose --env-file .env config",
+    "docker:up": "docker compose --env-file .env up --build -d",
+    "docker:down": "docker compose --env-file .env down",
+    "docker:status": "docker compose --env-file .env ps",
+    "env:init": "node backend/tools/create-env.mjs",
+    "check:structure": "node backend/tools/validate-structure.mjs"
   },
   "engines": {
     "node": ">=20.18.0",

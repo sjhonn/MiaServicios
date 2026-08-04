@@ -112,7 +112,7 @@ onMounted(loadDashboard);
       <StatCard label="Tareas realizadas" :value="formatNumber(stats.total)" detail="Resultados guardados" icon="fa-solid fa-list-check" />
       <StatCard label="Contenido revisado" :value="formatNumber(stats.totalCharacters)" detail="Caracteres procesados" icon="fa-solid fa-file-lines" />
       <StatCard label="Respuesta promedio" :value="`${stats.averageMs || 0} ms`" detail="Tiempo habitual de espera" icon="fa-solid fa-stopwatch" />
-      <StatCard label="Herramienta frecuente" :value="primaryOperation" detail="La más utilizada" icon="fa-solid fa-star" />
+      <StatCard label="Resultados favoritos" :value="formatNumber(stats.favoriteTotal || 0)" :detail="`Uso frecuente: ${primaryOperation}`" icon="fa-solid fa-star" />
     </section>
 
     <section class="dashboard-grid dashboard-grid-wide">

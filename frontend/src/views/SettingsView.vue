@@ -24,7 +24,7 @@ const loadingConnection = ref(false);
 const importInput = ref(null);
 
 const systemVersions = [
-  { name: 'MiaServicios', version: '3.0.0', purpose: 'Versión estable de la plataforma' },
+  { name: 'MiaServicios', version: '3.2.0', purpose: 'Versión estable de la plataforma' },
   { name: 'Vue', version: '3.5.13', purpose: 'Interfaz y componentes visuales' },
   { name: 'Bootstrap', version: '4.6.2', purpose: 'Diseño adaptable y estructura visual' },
   { name: 'Font Awesome', version: '6.7.2', purpose: 'Iconos de la interfaz' },
@@ -240,6 +240,13 @@ onMounted(checkHealth);
             <select id="motion" v-model="visual.motion" class="custom-select">
               <option value="full">Normal</option>
               <option value="reduced">Reducido</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="text-size">Tamaño de texto</label>
+            <select id="text-size" v-model="visual.textSize" class="custom-select">
+              <option value="standard">Estándar</option>
+              <option value="large">Grande</option>
             </select>
           </div>
         </div>

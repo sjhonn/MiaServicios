@@ -6,12 +6,15 @@ import { useNotifier } from '../composables/useNotifier.js';
 
 const STORAGE_KEY = 'mia_experience_image';
 const LEGACY_STORAGE_KEY = 'mia_architecture_image_v25';
-const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const MAX_IMAGE_DIMENSION = 1920;
 const ALLOWED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'];
 
 const { push } = useNotifier();
 const imageInput = ref(null);
 const customImage = ref(null);
+const dragActive = ref(false);
+const imageProcessing = ref(false);
 
 const journey = [
   {
@@ -89,7 +92,8 @@ const principles = [
 
 const formatBytes = (bytes) => {
   if (!bytes) return '0 KB';
-  return `${(bytes / 1024).toFixed(bytes >= 1024 * 1024 ? 0 : 1)} KB`;
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / 1024).toFixed(1)} KB`;
 };
 
 const downloadBlob = (blob, filename) => {
@@ -180,40 +184,101 @@ const exportPng = () => {
 
 const selectImage = () => imageInput.value?.click();
 
-const onImageSelected = (event) => {
-  const [file] = event.target.files || [];
-  event.target.value = '';
-  if (!file) return;
-
-  if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
-    push('Use una imagen PNG, JPG, WEBP o SVG.', 'danger');
-    return;
-  }
-
-  if (file.size > MAX_IMAGE_BYTES) {
-    push('La imagen no debe superar los 2 MB.', 'danger');
-    return;
-  }
-
+const fileToDataUrl = (file) => new Promise((resolve, reject) => {
   const reader = new FileReader();
-  reader.onload = () => {
-    const image = {
+  reader.onload = () => resolve(String(reader.result));
+  reader.onerror = () => reject(new Error('No fue posible leer la imagen seleccionada.'));
+  reader.readAsDataURL(file);
+});
+
+const rasterToOptimizedImage = (file) => new Promise((resolve, reject) => {
+  const sourceUrl = URL.createObjectURL(file);
+  const image = new Image();
+  image.onload = () => {
+    const scale = Math.min(1, MAX_IMAGE_DIMENSION / Math.max(image.naturalWidth, image.naturalHeight));
+    const width = Math.max(1, Math.round(image.naturalWidth * scale));
+    const height = Math.max(1, Math.round(image.naturalHeight * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d');
+    if (!context) {
+      URL.revokeObjectURL(sourceUrl);
+      reject(new Error('El navegador no permite procesar la imagen.'));
+      return;
+    }
+    context.drawImage(image, 0, 0, width, height);
+    canvas.toBlob(async (blob) => {
+      URL.revokeObjectURL(sourceUrl);
+      if (!blob) {
+        reject(new Error('No fue posible optimizar la imagen.'));
+        return;
+      }
+      const optimizedName = file.name.replace(/\.[^.]+$/, '') + '.webp';
+      resolve({
+        name: optimizedName,
+        originalName: file.name,
+        type: 'image/webp',
+        size: blob.size,
+        width,
+        height,
+        dataUrl: await fileToDataUrl(blob),
+        updatedAt: new Date().toISOString()
+      });
+    }, 'image/webp', 0.86);
+  };
+  image.onerror = () => {
+    URL.revokeObjectURL(sourceUrl);
+    reject(new Error('La imagen no pudo abrirse.'));
+  };
+  image.src = sourceUrl;
+});
+
+const prepareImage = async (file) => {
+  if (!file) return;
+  if (!ALLOWED_IMAGE_TYPES.includes(file.type)) throw new Error('Use una imagen PNG, JPG, WEBP o SVG.');
+  if (file.size > MAX_IMAGE_BYTES) throw new Error('La imagen no debe superar los 5 MB.');
+
+  if (file.type === 'image/svg+xml') {
+    return {
       name: file.name,
+      originalName: file.name,
       type: file.type,
       size: file.size,
-      dataUrl: String(reader.result),
+      width: null,
+      height: null,
+      dataUrl: await fileToDataUrl(file),
       updatedAt: new Date().toISOString()
     };
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(image));
-      customImage.value = image;
-      push('Guía visual agregada correctamente.', 'success');
-    } catch {
-      push('No hay espacio suficiente para guardar la imagen.', 'danger');
-    }
-  };
-  reader.onerror = () => push('No fue posible leer la imagen seleccionada.', 'danger');
-  reader.readAsDataURL(file);
+  }
+
+  return rasterToOptimizedImage(file);
+};
+
+const savePreparedImage = async (file) => {
+  imageProcessing.value = true;
+  try {
+    const image = await prepareImage(file);
+    if (!image) return;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(image));
+    customImage.value = image;
+    push('Guía visual optimizada y guardada.', 'success');
+  } catch (error) {
+    push(error.message || 'No fue posible guardar la imagen.', 'danger');
+  } finally {
+    imageProcessing.value = false;
+  }
+};
+
+const onImageSelected = async (event) => {
+  const [file] = event.target.files || [];
+  event.target.value = '';
+  await savePreparedImage(file);
+};
+
+const dropImage = async (event) => {
+  dragActive.value = false;
+  await savePreparedImage(event.dataTransfer?.files?.[0]);
 };
 
 const removeImage = () => {
@@ -230,6 +295,43 @@ const downloadImage = () => {
   document.body.appendChild(link);
   link.click();
   link.remove();
+};
+
+const exportCustomImage = (format) => {
+  if (!customImage.value) return;
+  if (customImage.value.type === 'image/svg+xml' && format === 'svg') {
+    downloadImage();
+    return;
+  }
+  const image = new Image();
+  image.onload = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = image.naturalWidth;
+    canvas.height = image.naturalHeight;
+    const context = canvas.getContext('2d');
+    if (!context) return;
+    if (format === 'jpg') {
+      context.fillStyle = '#ffffff';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+    }
+    context.drawImage(image, 0, 0);
+    const mime = format === 'jpg' ? 'image/jpeg' : `image/${format}`;
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        push('No fue posible convertir la imagen.', 'danger');
+        return;
+      }
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `miaservicios-guia-${Date.now()}.${format}`;
+      link.click();
+      URL.revokeObjectURL(url);
+      push(`Imagen exportada en ${format.toUpperCase()}.`, 'success');
+    }, mime, 0.92);
+  };
+  image.onerror = () => push('No fue posible convertir la imagen.', 'danger');
+  image.src = customImage.value.dataUrl;
 };
 
 onMounted(() => {
@@ -319,15 +421,15 @@ onMounted(() => {
       </article>
     </section>
 
-    <section class="panel-card architecture-image-panel">
+    <section class="panel-card architecture-image-panel" :class="{ 'is-dragging': dragActive }" @dragenter.prevent="dragActive = true" @dragover.prevent="dragActive = true" @dragleave.prevent="dragActive = false" @drop.prevent="dropImage">
       <div class="panel-title architecture-panel-title">
         <div>
           <h2>Guía visual personalizada</h2>
-          <p class="panel-subtitle">Agregue una imagen que represente el recorrido, una pantalla de referencia o una guía de uso. Se admiten PNG, JPG, WEBP y SVG hasta 2 MB.</p>
+          <p class="panel-subtitle">Agregue una imagen que represente el recorrido, una pantalla de referencia o una guía de uso. Se admiten PNG, JPG, WEBP y SVG hasta 5 MB. Las imágenes grandes se optimizan automáticamente.</p>
         </div>
         <div class="architecture-image-actions">
-          <button type="button" class="btn btn-outline-light btn-sm" @click="selectImage">
-            <i class="fa-solid fa-upload mr-2"></i>{{ customImage ? 'Reemplazar imagen' : 'Agregar imagen' }}
+          <button type="button" class="btn btn-outline-light btn-sm" :disabled="imageProcessing" @click="selectImage">
+            <i :class="imageProcessing ? 'fa-solid fa-circle-notch fa-spin' : 'fa-solid fa-upload'" class="mr-2"></i>{{ imageProcessing ? 'Procesando' : customImage ? 'Reemplazar imagen' : 'Agregar imagen' }}
           </button>
           <input ref="imageInput" type="file" class="d-none" accept="image/png,image/jpeg,image/webp,image/svg+xml" @change="onImageSelected">
         </div>
@@ -338,23 +440,24 @@ onMounted(() => {
         <div class="architecture-image-meta">
           <div>
             <strong>{{ customImage.name }}</strong>
-            <span>{{ formatBytes(customImage.size) }} · Guardada en este navegador</span>
+            <span>{{ formatBytes(customImage.size) }}<template v-if="customImage.width"> · {{ customImage.width }} × {{ customImage.height }} px</template> · Guardada en este navegador</span>
           </div>
-          <div class="btn-group">
-            <button type="button" class="btn btn-outline-light btn-sm" @click="downloadImage" aria-label="Descargar imagen">
-              <i class="fa-solid fa-download"></i>
-            </button>
-            <button type="button" class="btn btn-outline-danger btn-sm" @click="removeImage" aria-label="Eliminar imagen">
-              <i class="fa-solid fa-trash-can"></i>
-            </button>
+          <div class="architecture-image-downloads">
+            <div class="btn-group">
+              <button type="button" class="btn btn-outline-light btn-sm" @click="exportCustomImage('png')">PNG</button>
+              <button type="button" class="btn btn-outline-light btn-sm" @click="exportCustomImage('jpg')">JPG</button>
+              <button type="button" class="btn btn-outline-light btn-sm" @click="exportCustomImage('webp')">WEBP</button>
+            </div>
+            <button type="button" class="btn btn-outline-light btn-sm" @click="downloadImage" aria-label="Descargar archivo original"><i class="fa-solid fa-download"></i></button>
+            <button type="button" class="btn btn-outline-danger btn-sm" @click="removeImage" aria-label="Eliminar imagen"><i class="fa-solid fa-trash-can"></i></button>
           </div>
         </div>
       </div>
 
-      <button v-else type="button" class="architecture-image-empty" @click="selectImage">
-        <span class="architecture-upload-icon"><i class="fa-regular fa-image"></i></span>
-        <strong>Agregar una guía visual</strong>
-        <span>Seleccione una imagen desde su equipo. El archivo se guarda únicamente en este navegador.</span>
+      <button v-else type="button" class="architecture-image-empty" :disabled="imageProcessing" @click="selectImage">
+        <span class="architecture-upload-icon"><i :class="imageProcessing ? 'fa-solid fa-circle-notch fa-spin' : 'fa-regular fa-image'"></i></span>
+        <strong>{{ dragActive ? 'Suelte la imagen aquí' : imageProcessing ? 'Optimizando imagen' : 'Agregar o arrastrar una guía visual' }}</strong>
+        <span>La imagen se ajusta para ocupar menos espacio y se guarda únicamente en este navegador.</span>
       </button>
     </section>
   </AppShell>

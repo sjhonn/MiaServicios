@@ -21,7 +21,7 @@ const guides = [
     id: 'reuse-result',
     icon: 'fa-solid fa-clock-rotate-left',
     title: 'Reutilizar un resultado',
-    steps: ['Abra Historial.', 'Busque por contenido o filtre por tipo de tarea.', 'Seleccione Reutilizar para enviar el texto al Espacio de trabajo.']
+    steps: ['Abra Historial.', 'Busque por contenido o filtre por tipo de tarea.', 'Abra el detalle, copie el resultado o márquelo como favorito.']
   },
   {
     id: 'backup',
@@ -33,8 +33,10 @@ const guides = [
 const questions = [
   { question: '¿Mi trabajo se pierde al cerrar la página?', answer: 'El borrador activo se guarda automáticamente en el navegador. Los resultados completados quedan disponibles en el Historial.' },
   { question: '¿Puedo usar un archivo de texto?', answer: 'Sí. En Espacio de trabajo puede importar archivos TXT de hasta 1 MB.' },
-  { question: '¿Dónde cambio el tamaño visual de la interfaz?', answer: 'En Configuración puede elegir una vista cómoda o compacta, además de ajustar contraste y movimiento.' },
-  { question: '¿Cómo traslado mi información a otro equipo?', answer: 'Exporte un respaldo desde Configuración e impórtelo en el otro navegador.' }
+  { question: '¿Dónde cambio el tamaño visual de la interfaz?', answer: 'En Configuración puede ajustar el tamaño de texto, el espaciado, el contraste y el movimiento.' },
+  { question: '¿Cómo traslado mi información a otro equipo?', answer: 'Exporte un respaldo desde Configuración e impórtelo en el otro navegador.' },
+  { question: '¿Qué ocurre cuando vence mi sesión?', answer: 'MiaServicios intenta renovarla automáticamente. Si ya no puede renovarse, vuelve al acceso sin mostrar errores técnicos.' },
+  { question: '¿Puedo guardar un resultado como imagen?', answer: 'Sí. Desde el resultado puede descargar archivos PNG, JPG o WEBP, además de TXT y JSON.' }
 ];
 </script>
 

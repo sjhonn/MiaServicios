@@ -1,4 +1,4 @@
-// Define rutas privadas compatibles con GitHub Pages.
+// Define rutas privadas compatibles con publicacion estatica.
 import { createRouter, createWebHashHistory } from 'vue-router';
 import { useAuthStore } from '../stores/auth.js';
 import LoginView from '../views/LoginView.vue';
@@ -19,17 +19,18 @@ const router = createRouter({
     { path: '/laboratorio', name: 'text-lab', component: TextLabView, meta: { requiresAuth: true, title: 'Espacio de trabajo' } },
     { path: '/historial', name: 'history', component: HistoryView, meta: { requiresAuth: true, title: 'Historial' } },
     { path: '/plantillas', name: 'templates', component: TemplatesView, meta: { requiresAuth: true, title: 'Plantillas' } },
-    { path: '/configuracion', name: 'settings', component: SettingsView, meta: { requiresAuth: true, title: 'Configuracion' } },
+    { path: '/configuracion', name: 'settings', component: SettingsView, meta: { requiresAuth: true, title: 'Configuración' } },
     { path: '/experiencia', name: 'architecture', component: ArchitectureView, meta: { requiresAuth: true, title: 'Experiencia' } },
     { path: '/ayuda', name: 'help', component: HelpView, meta: { requiresAuth: true, title: 'Ayuda' } },
     { path: '/arquitectura', redirect: '/experiencia' },
-    { path: '/:pathMatch(.*)*', name: 'not-found', component: NotFoundView, meta: { title: 'Pagina no encontrada' } }
+    { path: '/:pathMatch(.*)*', name: 'not-found', component: NotFoundView, meta: { title: 'Página no encontrada' } }
   ],
   scrollBehavior: () => ({ top: 0 })
 });
 
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   const auth = useAuthStore();
+  if (!auth.initialized) await auth.bootstrap();
   if (to.meta.requiresAuth && !auth.authenticated) return { name: 'login' };
   if (to.meta.guestOnly && auth.authenticated) return { name: 'dashboard' };
   return true;

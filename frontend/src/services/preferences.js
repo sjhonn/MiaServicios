@@ -3,7 +3,8 @@ const key = 'mia_user_preferences';
 const defaults = {
   density: 'comfortable',
   contrast: 'standard',
-  motion: 'full'
+  motion: 'full',
+  textSize: 'standard'
 };
 
 const read = () => {
@@ -19,6 +20,7 @@ const apply = (preferences = read()) => {
   root.dataset.density = preferences.density;
   root.dataset.contrast = preferences.contrast;
   root.dataset.motion = preferences.motion;
+  root.dataset.textSize = preferences.textSize;
   return preferences;
 };
 
